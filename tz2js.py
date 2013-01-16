@@ -45,16 +45,16 @@ months = [
 ]
 
 zone_files = [
-	"africa",
-	"antarctica",
-	"asia",
-	"australasia",
+#	"africa",
+#	"antarctica",
+#	"asia",
+#	"australasia",
 	#~ "backward",
-	"etcetera",
-	"europe",
+#	"etcetera",
+#	"europe",
 	#~ "leapseconds",
-	"northamerica",
-	"pacificnew",
+#	"northamerica",
+#	"pacificnew",
 	#~ "solar87",
 	#~ "solar88",
 	#~ "solar89",
@@ -120,7 +120,12 @@ def parseRuleZoneFiles(zone_file):
 	Link's to an already established timezone.
 	Link	Antarctica/McMurdo	Antarctica/South_Pole
 	"""
+
+	# variables used to track values over multiple lines.
 	context=''
+	area = ''
+	location = ''
+
 	zfh = open(os.path.join(tzpath, zone_file), "r")
 	for line in zfh.readlines():
 		# Skip full line comments
@@ -135,21 +140,31 @@ def parseRuleZoneFiles(zone_file):
 			continue
 
 		# Split the line into each field of the record.
-		s = line.split("\t")
+		x = re.search('^(.)', line)
 
-		# Get the context of the line Zone, Rule or Link.
-		if len(s[0]):
-			context = s[0]
+		# Get the context of the line either: Zone, Rule or Link.
+		if x.groups()[0] != '\t':
+			context = x.groups()[0]
 
 		# Detect malformed records and attempt to fix them.
-		if context.lower().find("zone") == 0 and len(s) < 5:
-			print "***",line
-		elif context.lower().find("rule") == 0 and len(s) != 10:
-			print "***",line
-		elif context.lower().find("link") == 0and len(s) != 3:
-			print "%%%", line
-		else:
+		if context.lower() == "z":
+			if x.groups()[0].lower() == "z":
+				r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)$', line)
+				if r:
+					print len(r.groups()), r.groups()
+			elif re.search('\s', x.groups()[0]):
+				# 			-4:32:36 1:00	BOST	1932 Mar 21 # Bolivia ST
+				r = re.search('^\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)$', line)
+				if r:
+					print len(r.groups()), r.groups()
+			else:
+				print "UNKNOWN ZONE FORMAT!"
+		elif context.lower() == "r":
 			print line
+		elif context.lower() == "l":
+			print line
+		else:
+			print "UNKNOWN LINE"
 	zfh.close()
 
 for z in zone_files:

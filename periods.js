@@ -50,49 +50,31 @@ function dateToDayEpoch(d)
 function RangeRule(r)
 {
 	default_rule = {
-		weeknames: ["Monday","Tuesday","Wednesday","Thrusday","Friday","Saturday","Sunday"],
+		weeknames: {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 },
 		now: new Date(),
 		execute: true,
-		times: ["00:00:01", "23:59:59"],
+		times: [[0,0,1], [23,59,59]],
 		weekddays: "",
-		months: ["jan", "dec"],
+		months: ["jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5,
+				 "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11],
 		timezone: "europe/paris"
 	};
-	if ( rule.length < 3 )
+	if ( r.length < 3 )
 	{
 		htmlLine("Error, insufficient information to check range.");
 		return false;
 	}
 
-	switch ( r.length )
-	{
-		case 3:
-			execute = r[0];
-			times = r[1];
-			timezone = r[2];
-			break;
-		case 4:
-			execute = r[0];
-			times = r[1];
-			weekddays = r[2];
-			timezone = r[3];
-			break;
-		case 5:
-			execute = r[0];
-			times = r[1];
-			weekddays = r[2];
-			months = r[3];
-			timezone = r[4];
-			break;
-	} 
+	// extract time with /^(\d\d?):?(\d{0,2}):?(\d{0,2})/;
+	// extract day of the week or month of the year with .toLowerCase().substr(0,3);
 
-// [ false, ["00:00:01", "23:59:59"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
+// [ false, ["00:00:01", "[+/]23:59:59","00:00:01"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
 }
 
 periods();
 
 
-RangeRule([ false, ["00:00:01", "23:59:59"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
+RangeRule([ false, "00:00:01-23:59:59", ["monday","friday"], ["jan","dec"], "europe/paris" ]);
 
 /*
 Possible range / period usage formats:
