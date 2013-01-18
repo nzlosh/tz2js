@@ -160,7 +160,11 @@ def parseRuleZoneFiles(zone_file):
 			else:
 				print "UNKNOWN ZONE FORMAT!"
 		elif context.lower() == "r":
-			print line
+			r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
+			if r:
+				print len(r.groups()), r.groups()
+			else:
+				print "UNKOWN RULE FORMAT!", line
 		elif context.lower() == "l":
 			print line
 		else:
