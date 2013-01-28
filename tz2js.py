@@ -32,6 +32,8 @@ tzpath = os.path.join(sys.argv[1],"tzdata"+tzdata_version)
 months = [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
 days = [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
 
+MAX_YEAR = 2050
+
 zone_files = [
 	"africa",
 	"antarctica",
@@ -64,7 +66,7 @@ class tzRule(object):
 		self.setYearFrom(year_from)
 		self.setYearTo(year_to)
 		self.setMonthIn(month_in)
-		self.getDayOn(day_on)
+		self.setDayOn(day_on)
 		self.time_at = time_at
 		self.rule_type = rule_type
 		self.save = save
@@ -72,7 +74,7 @@ class tzRule(object):
 
 
 	def setFromYear(self):
-		# We only test times equal to or greater than the present.
+		# Only test times equal to or greater than the present.
 		if int(z[2]) <= time.gmtime()[0] <= int(z[3]):
 			print "Fields: %d" %len(z), "*** Name:", z[1], "From: ", z[2], "to %s/%s/%s" % (z[3], months.index(z[5]), z[6]), "^^^ TYPE:",z[4], "AT:", z[7],"SAVE:",z[8], z[9].strip()
 
@@ -94,10 +96,10 @@ class tzRule(object):
 	def setYearTo(self, year_to):
 		if year_to == "only":				# Transform TO "only" to the equivalent year as FROM
 			self.year_to = self.year_from
-		elif year_to == "max":				# Transform TO "max" arbitrarily to 40 years in the future.
-			self.year_to = 2050
+		elif year_to == "max":				# Transform TO "max" arbitrarily selected maximum year.
+			self.year_to = MAX_YEAR
 		else:
-			self.year_to = int(year_to)		# cast to integer
+			self.year_to = int(year_to)		# expect year to be a number, so it's explicitly cast to an integer
 
 
 	def getYearTo(self):
@@ -112,7 +114,7 @@ class tzRule(object):
 		return self.month_in
 
 
-	def getDayOn(self, day_on):
+	def setDayOn(self, day_on):
 		if day_on.isdigit():
 			self.day_on = int(day_on)
 		else:
@@ -122,18 +124,34 @@ class tzRule(object):
 				day, comp, dom = re.search('(\w+)(\W+)(\d+)',day_on).groups()
 				print day, comp, dom
 			except(AttributeError):
-				try:
-					day = re.search('last(\w+)', day_on).groups()[0]
-					print day,"<",31
-				except:
-					print "ZOOOOOT!", day_on
+				pass
+			try:
+				day = re.search('last(\w+)', day_on).groups()[0]
+				# TODO: Handle calculation of last/first day of month etc.
+				print day,"<=",31
+			except(AttributeError):
+				pass
 
+
+	def getDateTo(self):
+		"""
+		Return the To date as a native date object.
+		"""
+		raise NotImplementedError
+
+	def getDateFrom(self):
+		"""
+		Return the From date as native date object.
+		"""
+		raise NotImplementedError
 
 	def setLetters(self, letters):
 		self.letters = letters.strip()
 		if self.letters == "-":
 			self.letters = ""
 
+	def getLetters(self):
+		return self.letters
 
 
 	def __str__(self):
@@ -156,12 +174,12 @@ class tzZone(object):
 	[Zone, NAME, GMTOFF, RULES, FORMAT, [UNTIL]] or
 	[GMTOFF, RULES, FORMAT, [UNTIL]]
 	"""
-	def __init__(name, gmt_off, rules, zone_format, until):
-		self.name
-		self.gmt_off
-		self.rules
-		self.zone_format
-		self.until
+	def __init__(name, gmt_off, rules, zone_format, until = MAX_YEAR):
+		self.name = name
+		self.gmt_off = gmt_off
+		self.rules = rules
+		self.zone_format = zone_format
+		self.until = until
 
 
 
@@ -227,10 +245,12 @@ def parseRuleZoneFiles(zone_file):
 	"""
 
 	# variables used to track values over multiple lines.
-	context=''
-	area = ''
-	location = ''
+	context = ""
+	area = ""
+	location = ""
+
 	tmp = []
+	tmp_location = ""
 
 	zfh = open(os.path.join(tzpath, zone_file), "r")
 	for line in zfh.readlines():
@@ -257,30 +277,36 @@ def parseRuleZoneFiles(zone_file):
 			if x.groups()[0].lower() == "z":
 				r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)$', line)
 				if r:
-					#~ print len(r.groups()), r.groups()
+					# The zone's location is passed to lines which don't
+					# explicitly state it.
+					tmp_location = r.groups()[1]
 					tmp.append( list(r.groups()) )
 			elif re.search('^\s', x.groups()[0]):
 				# 			-4:32:36 1:00	BOST	1932 Mar 21 # Bolivia ST
 				r = re.search('^\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)$', line)
 				if r:
-					#~ print len(r.groups()), r.groups()
-					tmp.append( list(r.groups()) )
+					# Zone files missing explicit locations inherit from the
+					# last explicitly mentioned zone line.
+					tmp_zone = ["Zone", tmp_location]
+					tmp_zone.extend( list(r.groups()) )
+					tmp.append( tmp_zone )
 			else:
 				print "UNKNOWN ZONE FORMAT!", line
+
 		elif context.lower() == "r":
 			r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
 			if r:
-				#~ print len(r.groups()), r.groups()
 				tmp.append( list(r.groups()) )
 			else:
 				print "UNKOWN RULE FORMAT!", line
+
 		elif context.lower() == "l":
 			r = re.search("^(L[^\s]+)\s+([^\s]+)\s+([^\s]+)", line)
 			if r:
-				#~ print len(r.groups()), r.groups()
 				tmp.append( list(r.groups()) )
 			else:
 				print "UNKNOWN LINK FORMAT!", line
+
 		else:
 			print "UNKNOWN LINE!", line
 	zfh.close()
@@ -288,7 +314,7 @@ def parseRuleZoneFiles(zone_file):
 	return tmp
 
 
-zone_list = parseZoneFile();
+zones = parseZoneFile();
 
 zone_result = []
 for z in zone_files:
@@ -296,7 +322,6 @@ for z in zone_files:
 
 #print json.dumps(zone_result)
 #print json.dumps(parseZoneFile())
-
 
 for zr in zone_result:
 	for z in zr:

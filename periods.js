@@ -80,6 +80,22 @@ periods();
 
 RangeRule([ false, "00:00:01-23:59:59", ["monday","friday"], ["jan","dec"], "europe/paris" ]);
 
+/* range object expects a text representation of it's ranges, it transforms
+ * the text representation into a min/max list which can then be used to
+ * verify if the current time falls within the given range.
+*/
+range = {
+time: [ [0,0,0,0], [23,59,59,999] ],
+dow: [ 1, 7 ], // 7 is sun, override 0.
+week: [ 1, 52 ],
+dom: [ 1, 31 ],
+wom: [ 1, 5 ],
+month: [ 1, 12 ],
+year: [ 2000, 2050 ]
+}
+range.time;
+new Date(Date.UTC(2012,1,1,range.time[1][0],range.time[1][1],range.time[1][2],range.time[1][3])).toUTCString();
+
 
 var rule = {
 	weeknames: {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 },
