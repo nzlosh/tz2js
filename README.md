@@ -35,3 +35,20 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
 OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
+
+
+Installation
+============
+
+  * Requirements
+    Python 2.7
+    IANA tz data archive
+
+  1 Get the tz data archive file.
+    > wget 'http://www.iana.org/time-zones/repository/releases/tzdata2012j.tar.gz'
+
+  2 Extact the arcihve to your desired directory.
+    > tar xzvf tzdata2012j.tar.gz /tmp
+
+   3 Execute tz2js.py passing the tzdata's parent directory.
+    > Execute tz2js.py /tmp.
