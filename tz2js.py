@@ -24,7 +24,7 @@
 
 
 # Required modules
-import os, sys, re, json, time
+import os, sys, re, json, time, datetime
 
 def usage():
     print "\nUsage: %s <path to tzdata directory>\n" % sys.argv[0]
@@ -74,9 +74,9 @@ class tzRule(object):
     def __init__(self, name, year_from, rule_type, year_to, month_in, day_on, time_at, save, letters):
         self.name = name
         self.setYearFrom(year_from)
-        self.setYearTo(year_to)
-        self.setMonthIn(month_in)
-        self.setDayOn(day_on)
+        self.setYearTo(year_to)         # Order matters; year_to, month_in,
+        self.setMonthIn(month_in)       # day_on are used to calculate
+        self.setDayOn(day_on)           # lastDay/firstDay entries correctly.
         self.time_at = time_at
         self.rule_type = rule_type
         self.save = save
@@ -94,7 +94,7 @@ class tzRule(object):
         Expected input: YYYY formatted year.
         """
         if year_from.isdigit():
-            self.year_from = int(year_from)
+            self.year_from = datetime.datetime(int(year_from), 1, 1)
         else:
             raise "Year From isn't a digit!"
 
@@ -105,7 +105,7 @@ class tzRule(object):
 
     def setYearTo(self, year_to):
         if year_to == "only":               # Transform TO "only" to the equivalent year as FROM
-            self.year_to = self.year_from
+            self.year_to = self.year_from.year
         elif year_to == "max":              # Transform TO "max" arbitrarily selected maximum year.
             self.year_to = MAX_YEAR
         else:
@@ -178,6 +178,8 @@ class tzRule(object):
         )
 
 
+    def __repr__(self):
+        return "'%s'"%str(self)
 
 class tzZone(object):
     """
@@ -207,9 +209,17 @@ def parseZoneFile():
     3.  Zone name used in value of TZ environment variable.
     4.  Comments; present if and only if the country has multiple rows.
     """
-    zone_file = "zone.tab"
+
     z = {}
-    zones = open( os.path.join(tzpath,zone_file), "r")
+
+
+    zone_file = os.path.join(tzpath,"zone.tab")
+
+    if not os.path.exists(zone_file):
+        print "File '%s' doesn't exist" % zone_file
+        sys.exit(2)
+
+    zones = open( zone_file, "r")
 
     for line in zones.readlines():
         # Skip full line comments
@@ -223,11 +233,9 @@ def parseZoneFile():
         # The only information required are Zone names.  Which are split
         # into Area and Location.
         area, location = rec[2].split("/",1)
-        if z.has_key(area):
-            z[area][location] = {}
-        else:
+        if not z.has_key(area):
             z[area] = {}
-            z[area][location] = {}
+        z[area][location] = {}
 
     zones.close()
     return z
@@ -235,7 +243,7 @@ def parseZoneFile():
 
 
 
-def parseRuleZoneFiles(zone_file):
+def parseRuleZoneFiles(filename, zones={}, rules={}):
     """
     Information about the files being parsed:
 
@@ -256,13 +264,16 @@ def parseRuleZoneFiles(zone_file):
 
     # variables used to track values over multiple lines.
     context = ""
-    area = ""
-    location = ""
 
     tmp = []
     tmp_location = ""
 
-    zfh = open(os.path.join(tzpath, zone_file), "r")
+    rule_zone_file = os.path.join(tzpath, filename)
+    if not os.path.exists(rule_zone_file):
+        print "File '%s' doesn't exist" % rule_zone_file
+        sys.exit(2)
+
+    zfh = open(rule_zone_file, "r")
     for line in zfh.readlines():
         # Skip full line comments
         if re.search(r"^\s*#", line):
@@ -287,41 +298,52 @@ def parseRuleZoneFiles(zone_file):
             if x.groups()[0].lower() == "z":
                 r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)$', line)
                 if r:
+                    # Strip white space from last field.
+                    tmp = list(r.groups())
+                    tmp[5] = tmp[5].strip()
                     # The zone's location is passed to lines which don't
                     # explicitly state it.
-                    tmp_location = r.groups()[1]
+                    tmp_location = tmp[1]
 
-                    # Strip white space from last field.
-                    tmp_list = list(r.groups())
-                    tmp_list[5] = tmp_list[5].strip()
+                    if not rules.has_key(tmp[1]):
+                        rules[tmp[1]] = []
+                    rules[tmp[1]].append( tmp )
 
-                    tmp.append( tmp_list )
             elif re.search('^\s', x.groups()[0]):
                 #           -4:32:36 1:00   BOST    1932 Mar 21 # Bolivia ST
                 r = re.search('^\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)$', line)
                 if r:
                     # Zone files missing explicit locations inherit from the
                     # last explicitly mentioned zone line.
-                    tmp_zone = ["Zone", tmp_location]
-                    tmp_zone.extend( list(r.groups()) )
+                    tmp = ["Zone", tmp_location]
+                    tmp.extend( list(r.groups()) )
 
                     # Strip white space from last field.
-                    tmp_zone[5] = tmp_zone[5].strip()
-                    tmp.append( tmp_zone )
+                    tmp[5] = tmp[5].strip()
+
+                    if not rules.has_key(tmp[1]):
+                        rules[tmp[1]] = []
+                    rules[tmp[1]].append( tmp )
             else:
                 print "UNKNOWN ZONE FORMAT!", line
 
         elif context.lower() == "r":
             r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
             if r:
-                tmp.append( list(r.groups()) )
+                tmp = list(r.groups())
+                if not rules.has_key(tmp[1]):
+                    rules[tmp[1]] = []
+                rules[tmp[1]].append( tzRule(tmp[1],tmp[2],tmp[4],tmp[3],tmp[5],tmp[6],tmp[7],tmp[8],tmp[9]) )
             else:
                 print "UNKOWN RULE FORMAT!", line
 
         elif context.lower() == "l":
             r = re.search("^(L[^\s]+)\s+([^\s]+)\s+([^\s]+)", line)
             if r:
-                tmp.append( list(r.groups()) )
+                tmp = list(r.groups())
+                if not rules.has_key("link"):
+                    rules["link"] = []
+                rules["link"].append(tmp)
             else:
                 print "UNKNOWN LINK FORMAT!", line
 
@@ -329,22 +351,15 @@ def parseRuleZoneFiles(zone_file):
             print "UNKNOWN LINE!", line
     zfh.close()
 
-    return tmp
+    return rules
 
 
 zones = parseZoneFile();
 
-zone_result = []
-for z in zone_files:
-    zone_result.append(parseRuleZoneFiles(z))
+rules = {}
+for zone_file in zone_files:
+    rules.update( parseRuleZoneFiles(zone_file, zones, rules) )
 
-#~ print json.dumps(zone_result)
-#~ print json.dumps(parseZoneFile())
+print json.dumps(zones)
+print rules # to do, implement __repr__ for tzRule object for it to JSONified.
 
-for zr in zone_result:
-    for z in zr:
-        if z[0].lower() == "rule":
-            a_rule = tzRule(z[1],z[2],z[4],z[3],z[5],z[6],z[7],z[8],z[9])
-            print a_rule
-        else:
-            print z
