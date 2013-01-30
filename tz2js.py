@@ -341,9 +341,9 @@ def parseRuleZoneFiles(filename, zones={}, rules={}):
             r = re.search("^(L[^\s]+)\s+([^\s]+)\s+([^\s]+)", line)
             if r:
                 tmp = list(r.groups())
-                if not rules.has_key("link"):
-                    rules["link"] = []
-                rules["link"].append(tmp)
+                if not rules.has_key(tmp[1]):
+                    rules[tmp[1]] = []
+                rules[tmp[2]] = rules[tmp[1]]
             else:
                 print "UNKNOWN LINK FORMAT!", line
 
