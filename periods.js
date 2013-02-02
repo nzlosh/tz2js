@@ -80,7 +80,8 @@ periods();
 
 RangeRule([ false, "00:00:01-23:59:59", ["monday","friday"], ["jan","dec"], "europe/paris" ]);
 
-/* range object expects a text representation of it's ranges, it transforms
+/*
+ * range object expects a text representation of it's ranges, it transforms
  * the text representation into a min/max list which can then be used to
  * verify if the current time falls within the given range.
 */

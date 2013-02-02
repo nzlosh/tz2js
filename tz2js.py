@@ -64,6 +64,19 @@ zone_files = [
 
 
 
+# Required to help transform Python objects into JSON comptiable objects.
+# See the json module doc's for more information help(json)
+# Help from: http://stackoverflow.com/questions/5160077/encoding-nested-python-object-in-json?rq=1
+class jsonEncoderHelper(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o,"toJSON"):
+            return o.toJSON()
+        return json.JSONEncoder.default(self, o)
+
+# Extend the datetime class to include a function which returns a JSON comptiable date string.
+class DateTime(datetime.datetime):
+    def toJSON(self):
+        return self.isoformat() # present dates in ISO 8601 format
 
 
 class tzRule(object):
@@ -72,7 +85,7 @@ class tzRule(object):
     the [Rule, NAME, FROM, TO, TYPE, IN, ON, AT, SAVE, LETTER/S]
     """
     def __init__(self, name, year_from, rule_type, year_to, month_in, day_on, time_at, save, letters):
-        self.name = name
+        self.setName(name)
         self.setYearFrom(year_from)
         self.setYearTo(year_to)         # Order matters; year_to, month_in,
         self.setMonthIn(month_in)       # day_on are used to calculate
@@ -83,10 +96,21 @@ class tzRule(object):
         self.setLetters(letters)
 
 
-    def setFromYear(self):
+    def setName(self, name):
+        self.name = name
+
+
+    def getName(self):
+        return self.name
+
+
+    def isCurrent(self):
         # Only test times equal to or greater than the present.
-        if int(z[2]) <= time.gmtime()[0] <= int(z[3]):
-            print "Fields: %d" %len(z), "*** Name:", z[1], "From: ", z[2], "to %s/%s/%s" % (z[3], months.index(z[5]), z[6]), "^^^ TYPE:",z[4], "AT:", z[7],"SAVE:",z[8], z[9].strip()
+        if self.year_from.year <= time.gmtime()[0] <= self.year_to:
+            print "Period current"
+            return True
+        print "Period expired"
+        return False
 
 
     def setYearFrom(self, year_from):
@@ -94,7 +118,7 @@ class tzRule(object):
         Expected input: YYYY formatted year.
         """
         if year_from.isdigit():
-            self.year_from = datetime.datetime(int(year_from), 1, 1)
+            self.year_from = DateTime(int(year_from), 1, 1)
         else:
             raise "Year From isn't a digit!"
 
@@ -149,16 +173,19 @@ class tzRule(object):
         """
         raise NotImplementedError
 
+
     def getDateFrom(self):
         """
         Return the From date as native date object.
         """
         raise NotImplementedError
 
+
     def setLetters(self, letters):
         self.letters = letters.strip()
         if self.letters == "-":
             self.letters = ""
+
 
     def getLetters(self):
         return self.letters
@@ -177,22 +204,72 @@ class tzRule(object):
             self.letters
         )
 
+    def toJSON(self):
+        return {
+            "name": self.name,
+            "year_from": self.year_from,
+            "year_to": self.year_to,
+            "month_in": self.month_in,
+            "day_on": self.day_on,
+            "time_at": self.time_at,
+            "rule_type": self.rule_type,
+            "save": self.save,
+            "letters": self.letters
+        }
 
-    def __repr__(self):
-        return "'%s'"%str(self)
+
+
 
 class tzZone(object):
     """
     [Zone, NAME, GMTOFF, RULES, FORMAT, [UNTIL]] or
     [GMTOFF, RULES, FORMAT, [UNTIL]]
     """
-    def __init__(name, gmt_off, rules, zone_format, until = MAX_YEAR):
+    def __init__(self, name, gmt_off, rules, zone_format, until = MAX_YEAR):
+        self.setName(name)
+        self.setGMTOffset(gmt_off)
+        self.setRules(rules)
+        self.setFormat(zone_format)
+        self.setYearUntil(until)
+
+    def setName(self, name):
         self.name = name
+
+    def getName(self):
+        return self.name
+
+    def setGMTOffset(self, gmt_off):
         self.gmt_off = gmt_off
+
+    def getGMTOffset(self):
+        return self.gmt_off
+
+    def setRules(self, rules):
         self.rules = rules
+
+    def getRules(self):
+        return self.rules
+
+    def setFormat(self, zone_format):
         self.zone_format = zone_format
+
+    def getFormat(self):
+        return self.zone_format
+
+    def setYearUntil(self, until):
         self.until = until
 
+    def getYearUntil(self):
+        return self.until
+
+    def toJSON(self):
+        return {
+            "name": self.name,
+            "gmt_off": self.gmt_off,
+            "rules": self.rules,
+            "zone_format": self.zone_format,
+            "until": self.until,
+        }
 
 
 
@@ -243,7 +320,7 @@ def parseZoneFile():
 
 
 
-def parseRuleZoneFiles(filename, zones={}, rules={}):
+def parseRuleZoneFile(filename, zones={}, rules={}):
     """
     Information about the files being parsed:
 
@@ -287,15 +364,15 @@ def parseRuleZoneFiles(filename, zones={}, rules={}):
             continue
 
         # Identify the type of line to process.
-        x = re.search('^(.)', line)
+        line_match = re.search('^(.)', line)
 
         # Get the context of the line either: Zone, Rule or Link.
-        if x.groups()[0] != '\t':
-            context = x.groups()[0]
+        if line_match.groups()[0] != '\t':
+            context = line_match.groups()[0]
 
         # Extract the fields from the line.
         if context.lower() == "z":
-            if x.groups()[0].lower() == "z":
+            if line_match.groups()[0].lower() == "z":
                 r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)$', line)
                 if r:
                     # Strip white space from last field.
@@ -309,7 +386,7 @@ def parseRuleZoneFiles(filename, zones={}, rules={}):
                         rules[tmp[1]] = []
                     rules[tmp[1]].append( tmp )
 
-            elif re.search('^\s', x.groups()[0]):
+            elif re.search('^\s', line_match.groups()[0]):
                 #           -4:32:36 1:00   BOST    1932 Mar 21 # Bolivia ST
                 r = re.search('^\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)$', line)
                 if r:
@@ -333,7 +410,9 @@ def parseRuleZoneFiles(filename, zones={}, rules={}):
                 tmp = list(r.groups())
                 if not rules.has_key(tmp[1]):
                     rules[tmp[1]] = []
-                rules[tmp[1]].append( tzRule(tmp[1],tmp[2],tmp[4],tmp[3],tmp[5],tmp[6],tmp[7],tmp[8],tmp[9]) )
+                tmprule = tzRule(tmp[1],tmp[2],tmp[4],tmp[3],tmp[5],tmp[6],tmp[7],tmp[8],tmp[9])
+                tmprule.isCurrent()
+                rules[tmp[1]].append( tmprule )
             else:
                 print "UNKOWN RULE FORMAT!", line
 
@@ -358,8 +437,9 @@ zones = parseZoneFile();
 
 rules = {}
 for zone_file in zone_files:
-    rules.update( parseRuleZoneFiles(zone_file, zones, rules) )
+    rules.update( parseRuleZoneFile(zone_file, zones, rules) )
 
-print json.dumps(zones)
-print rules # to do, implement __repr__ for tzRule object for it to JSONified.
+#~ print json.dumps(zones)
+#~ print json.dumps(rules, cls=jsonEncoderHelper)
 
+print rules
