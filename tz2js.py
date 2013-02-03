@@ -24,7 +24,9 @@
 
 
 # Required modules
-import os, sys, re, json, time, datetime
+import os, sys, re, json, time, datetime, logging
+
+logging.basicConfig( level=logging.DEBUG )
 
 def usage():
     print "\nUsage: %s <path to tzdata directory>\n" % sys.argv[0]
@@ -36,7 +38,7 @@ if len(sys.argv) != 2:
 tzdata_version = "2012j"
 tzpath = os.path.join(sys.argv[1],"tzdata"+tzdata_version)
 if not os.path.exists(tzpath):
-    print "File '%s' doesn't exist" % tzpath
+    logging.critical( "File '%s' doesn't exist" % tzpath )
     sys.exit(2)
 
 months = [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
@@ -105,11 +107,14 @@ class tzRule(object):
 
 
     def isCurrent(self):
-        # Only test times equal to or greater than the present.
-        if self.year_from.year <= time.gmtime()[0] <= self.year_to:
-            print "Period current"
+        """
+        Return true if the current date/time falls into the period.
+        Return false if current date/time falls outside either min/max limit.
+        """
+        if (self.year_from.year <= time.gmtime()[0] <= self.year_to) or (self.year_from.year > time.gmtime()[0]):
+            logging.debug( "%s: Period included." % self.__class__.__name__ )
             return True
-        print "Period expired"
+        logging.debug( "%s: Period excluded %s -> %s" % ( self.__class__.__name__, self.year_from.year, self.year_to ) )
         return False
 
 
@@ -120,6 +125,7 @@ class tzRule(object):
         if year_from.isdigit():
             self.year_from = DateTime(int(year_from), 1, 1)
         else:
+            logging.error( "%s: Unhandled format in Year From argument." % self.__class__.__name__ )
             raise "Year From isn't a digit!"
 
 
@@ -132,6 +138,7 @@ class tzRule(object):
             self.year_to = self.year_from.year
         elif year_to == "max":              # Transform TO "max" arbitrarily selected maximum year.
             self.year_to = MAX_YEAR
+            logging.info( "%s: Set 'max' to %d" % ( self.__class__.__name__, MAX_YEAR ) )
         else:
             self.year_to = int(year_to)     # expect year to be a number, so it's explicitly cast to an integer
 
@@ -156,32 +163,35 @@ class tzRule(object):
             self.day_on = "f(%s)" % day_on
             try:
                 day, comp, dom = re.search('(\w+)(\W+)(\d+)',day_on).groups()
-                print day, comp, dom
+                logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, comp, dom) )
             except(AttributeError):
                 pass
             try:
                 day = re.search('last(\w+)', day_on).groups()[0]
                 # TODO: Handle calculation of last/first day of month etc.
-                print day,"<=",31
+                logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, "<=", 31) )
             except(AttributeError):
                 pass
 
 
     def getDateTo(self):
         """
-        Return the To date as a native date object.
+        Return the To date as a Python date object.
         """
         raise NotImplementedError
 
 
     def getDateFrom(self):
         """
-        Return the From date as native date object.
+        Return the From date as Python date object.
         """
         raise NotImplementedError
 
 
     def setLetters(self, letters):
+        """
+        @arg letters holds the letter to identify the day light savings.
+        """
         self.letters = letters.strip()
         if self.letters == "-":
             self.letters = ""
@@ -257,10 +267,24 @@ class tzZone(object):
         return self.zone_format
 
     def setYearUntil(self, until):
-        self.until = until
+        """
+        Examples "1916 May 14 23:00" or "1911" and anything in between.
+        """
+        tmp = until.split(" ")
+        if len(tmp[0]) == 0:
+            # Empty until field, set the date to max.
+            tmp = DateTime(MAX_YEAR, 12, 31, 23, 59, 59)
+            logging.debug("*** %s: Year Until = %s" % (self.__class__.__name__, str(tmp) ) )
+        else:
+            if "" in tmp:
+                logging.debug( "Fix %s", str(tmp) )
+        # TODO: Implement parsing for the year_until
+        self.until = tmp
+
 
     def getYearUntil(self):
         return self.until
+
 
     def toJSON(self):
         return {
@@ -341,8 +365,6 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
 
     # variables used to track values over multiple lines.
     context = ""
-
-    tmp = []
     tmp_location = ""
 
     rule_zone_file = os.path.join(tzpath, filename)
@@ -373,36 +395,38 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
         # Extract the fields from the line.
         if context.lower() == "z":
             if line_match.groups()[0].lower() == "z":
-                r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)$', line)
+                r = re.search('^(Z[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*(.*)$', line)
                 if r:
-                    # Strip white space from last field.
-                    tmp = list(r.groups())
-                    tmp[5] = tmp[5].strip()
-                    # The zone's location is passed to lines which don't
-                    # explicitly state it.
-                    tmp_location = tmp[1]
+                    tmp = list( r.groups() )
+                    tmp.pop(0) # Throw away the "Zone" keyword.
 
-                    if not rules.has_key(tmp[1]):
-                        rules[tmp[1]] = []
-                    rules[tmp[1]].append( tmp )
-
+                    # Some lines don't explicitly have the zone's location so it's set here.
+                    tmp_location = tmp[0]
+                    logging.debug("parseRuleZone: Got location as = %s" % ( tmp_location ) )
+                else:
+                    raise ValueError("Zone doesn't match expected format %s" % line)
             elif re.search('^\s', line_match.groups()[0]):
                 #           -4:32:36 1:00   BOST    1932 Mar 21 # Bolivia ST
                 r = re.search('^\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)$', line)
                 if r:
-                    # Zone files missing explicit locations inherit from the
-                    # last explicitly mentioned zone line.
-                    tmp = ["Zone", tmp_location]
-                    tmp.extend( list(r.groups()) )
-
-                    # Strip white space from last field.
-                    tmp[5] = tmp[5].strip()
-
-                    if not rules.has_key(tmp[1]):
-                        rules[tmp[1]] = []
-                    rules[tmp[1]].append( tmp )
+                    # Zone lines without explicit locations use the
+                    # last explicitly mentioned zone location.
+                    tmp = [tmp_location]
+                    tmp.extend( list( r.groups() ) )
+                    logging.debug("parseRuleZone: set location to = %s" % ( tmp_location ) )
+                else:
+                    raise ValueError("Zone doesn't match expected format %s" % line)
             else:
-                print "UNKNOWN ZONE FORMAT!", line
+                logging.debug( "UNKNOWN ZONE FORMAT! %s" % line )
+                continue
+
+            # Strip white space from last field.
+            tmp[4] = tmp[4].strip()
+
+            tmpzone = tzZone(*tmp)
+            if not rules.has_key(tmp[0]):
+                rules[tmp[0]] = []
+            rules[tmp[0]].append( tmpzone )
 
         elif context.lower() == "r":
             r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
@@ -411,10 +435,10 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                 if not rules.has_key(tmp[1]):
                     rules[tmp[1]] = []
                 tmprule = tzRule(tmp[1],tmp[2],tmp[4],tmp[3],tmp[5],tmp[6],tmp[7],tmp[8],tmp[9])
-                tmprule.isCurrent()
-                rules[tmp[1]].append( tmprule )
+                if tmprule.isCurrent():
+                    rules[tmp[1]].append( tmprule )
             else:
-                print "UNKOWN RULE FORMAT!", line
+                raise ValueError("UNKOWN RULE FORMAT! %s" % line)
 
         elif context.lower() == "l":
             r = re.search("^(L[^\s]+)\s+([^\s]+)\s+([^\s]+)", line)
@@ -424,10 +448,10 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                     rules[tmp[1]] = []
                 rules[tmp[2]] = rules[tmp[1]]
             else:
-                print "UNKNOWN LINK FORMAT!", line
+                raise ValueError("UNKNOWN LINK FORMAT! %s" % line)
 
         else:
-            print "UNKNOWN LINE!", line
+            raise ValueError("UNKNOWN LINE! %s" % line)
     zfh.close()
 
     return rules
