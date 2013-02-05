@@ -75,7 +75,8 @@ class jsonEncoderHelper(json.JSONEncoder):
             return o.toJSON()
         return json.JSONEncoder.default(self, o)
 
-# Extend the datetime class to include a function which returns a JSON comptiable date string.
+
+# Extend the datetime class to include a method which returns a JSON comptiable date string.
 class DateTime(datetime.datetime):
     def toJSON(self):
         return self.isoformat() # present dates in ISO 8601 format
@@ -86,7 +87,7 @@ class tzRule(object):
     Holds a timezone rule.  The expected format is a list which contains
     the [Rule, NAME, FROM, TO, TYPE, IN, ON, AT, SAVE, LETTER/S]
     """
-    def __init__(self, name, year_from, rule_type, year_to, month_in, day_on, time_at, save, letters):
+    def __init__(self, name, year_from, year_to, rule_type, month_in, day_on, time_at, save, letters):
         self.setName(name)
         self.setYearFrom(year_from)
         self.setYearTo(year_to)         # Order matters; year_to, month_in,
@@ -432,11 +433,12 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
             r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
             if r:
                 tmp = list(r.groups())
-                if not rules.has_key(tmp[1]):
-                    rules[tmp[1]] = []
-                tmprule = tzRule(tmp[1],tmp[2],tmp[4],tmp[3],tmp[5],tmp[6],tmp[7],tmp[8],tmp[9])
+                tmp.pop(0) # discard "Rule" field.
+                if not rules.has_key(tmp[0]):
+                    rules[tmp[0]] = []
+                tmprule = tzRule(*tmp)
                 if tmprule.isCurrent():
-                    rules[tmp[1]].append( tmprule )
+                    rules[tmp[0]].append( tmprule )
             else:
                 raise ValueError("UNKOWN RULE FORMAT! %s" % line)
 
@@ -457,7 +459,7 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
     return rules
 
 
-zones = parseZoneFile();
+zones = parseZoneFile()
 
 rules = {}
 for zone_file in zone_files:
