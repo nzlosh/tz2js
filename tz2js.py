@@ -109,8 +109,7 @@ class tzRule(object):
 
     def isCurrent(self):
         """
-        Return true if the current date/time falls into the period.
-        Return false if current date/time falls outside either min/max limit.
+        Test if the current date/time falls with the min/max period.
         """
         if (self.year_from.year <= time.gmtime()[0] <= self.year_to) or (self.year_from.year > time.gmtime()[0]):
             logging.debug( "%s: Period included." % self.__class__.__name__ )
@@ -244,7 +243,15 @@ class tzZone(object):
         self.setYearUntil(until)
 
     def setName(self, name):
-        self.name = name
+        """
+        Expected format as 'area/location'. e.g. 'Atlantic/Canary'
+        """
+        logging.debug("Split on / for %s"%name)
+        if name.find("/") == -1:
+            self.area = name
+            self.location = None
+        else:
+            self.area, self.location = name.split("/", 1)
 
     def getName(self):
         return self.name
@@ -287,13 +294,23 @@ class tzZone(object):
         return self.until
 
 
+    def __str__(self):
+        return "Area: %s Location %s, GMT Offset: %s, Rule: %s, Format: %s, Until: %s" % (
+            self.area,
+            self.location,
+            self.gmt_off,
+            self.rules,
+            self.zone_format,
+            self.until)
+
     def toJSON(self):
         return {
-            "name": self.name,
+            "area": self.area,
+            "location": self.location,
             "gmt_off": self.gmt_off,
             "rules": self.rules,
             "zone_format": self.zone_format,
-            "until": self.until,
+            "until": self.until
         }
 
 
@@ -468,4 +485,8 @@ for zone_file in zone_files:
 #~ print json.dumps(zones)
 #~ print json.dumps(rules, cls=jsonEncoderHelper)
 
-print rules
+for rk in rules.keys():
+    print rk
+    for zone in rules[rk]:
+        print "****",zone
+
