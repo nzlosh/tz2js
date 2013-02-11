@@ -285,10 +285,13 @@ class tzZone(object):
             logging.debug("*** %s: Year Until = %s" % (self.__class__.__name__, str(tmp) ) )
         else:
             if "" in tmp:
-                logging.debug( "Fix %s", str(tmp) )
+                logging.debug( "Fixed %s", str(tmp) )
+                tmp.remove('')
         # TODO: Implement parsing for the year_until
         self.until = tmp
 
+    def isCurrent(self):
+        return self.until[0] >= time.gmtime()[0]    # Verify this code is correct!
 
     def getYearUntil(self):
         return self.until
