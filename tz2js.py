@@ -93,7 +93,7 @@ class tzRule(object):
         self.setYearTo(year_to)         # Order matters; year_to, month_in,
         self.setMonthIn(month_in)       # day_on are used to calculate
         self.setDayOn(day_on)           # lastDay/firstDay entries correctly.
-        self.time_at = time_at
+        self.setTimeAt(time_at)
         self.rule_type = rule_type
         self.save = save
         self.setLetters(letters)
@@ -174,6 +174,20 @@ class tzRule(object):
                 pass
 
 
+    def setTimeAt(self, time_at):
+        """
+        Expects time [h]h:mm format.  Also seen 0 as a value.
+        """
+        logging.debug("%s: Time At: %s" % (self.__class__.__name__, time_at) )
+        # Handle special case of 0
+        if time_at == "0":
+            time_at = "0:00"
+        self.hour, self.minute = time_at.split(":")
+        self.time_at = time_at
+
+    def getTimeAt(self):
+        return self.time_at
+
     def getDateTo(self):
         """
         Return the To date as a Python date object.
@@ -242,37 +256,56 @@ class tzZone(object):
         self.setFormat(zone_format)
         self.setYearUntil(until)
 
+
     def setName(self, name):
         """
         Expected format as 'area/location'. e.g. 'Atlantic/Canary'
         """
-        logging.debug("Split on / for %s"%name)
+
         if name.find("/") == -1:
+            logging.debug("No slash in location '%s'"%name)
             self.area = name
             self.location = None
         else:
+            logging.debug("Split on first slash for %s"%name)
             self.area, self.location = name.split("/", 1)
 
+
     def getName(self):
-        return self.name
+        return "%s/%s" % (self.area, self.location)
+
+
+    def getArea(self):
+        return self.area
+
+
+    def getLocation(self):
+        return self.location
+
 
     def setGMTOffset(self, gmt_off):
         self.gmt_off = gmt_off
 
+
     def getGMTOffset(self):
         return self.gmt_off
+
 
     def setRules(self, rules):
         self.rules = rules
 
+
     def getRules(self):
         return self.rules
+
 
     def setFormat(self, zone_format):
         self.zone_format = zone_format
 
+
     def getFormat(self):
         return self.zone_format
+
 
     def setYearUntil(self, until):
         """
@@ -281,30 +314,35 @@ class tzZone(object):
         tmp = until.split(" ")
         if len(tmp[0]) == 0:
             # Empty until field, set the date to max.
-            tmp = DateTime(MAX_YEAR, 12, 31, 23, 59, 59)
+            tmp = [MAX_YEAR, 12, 31, 23, 59, 59]
             logging.debug("*** %s: Year Until = %s" % (self.__class__.__name__, str(tmp) ) )
         else:
             if "" in tmp:
                 logging.debug( "Fixed %s", str(tmp) )
                 tmp.remove('')
-        # TODO: Implement parsing for the year_until
+                # TODO: Implement parsing for the year_until
+            if len(tmp) >= 2:
+                tmp[1] = months.index(tmp[1])+1
         self.until = tmp
+
 
     def isCurrent(self):
         return self.until[0] >= time.gmtime()[0]    # Verify this code is correct!
+
 
     def getYearUntil(self):
         return self.until
 
 
     def __str__(self):
-        return "Area: %s Location %s, GMT Offset: %s, Rule: %s, Format: %s, Until: %s" % (
+        return "Zone Area: %s Location %s, GMT Offset: %s, Rule: %s, Format: %s, Until: %s" % (
             self.area,
             self.location,
             self.gmt_off,
             self.rules,
             self.zone_format,
             self.until)
+
 
     def toJSON(self):
         return {
@@ -357,7 +395,7 @@ def parseZoneFile():
         area, location = rec[2].split("/",1)
         if not z.has_key(area):
             z[area] = {}
-        z[area][location] = {}
+        z[area][location] = []
 
     zones.close()
     return z
@@ -445,17 +483,27 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
             tmp[4] = tmp[4].strip()
 
             tmpzone = tzZone(*tmp)
-            if not rules.has_key(tmp[0]):
-                rules[tmp[0]] = []
-            rules[tmp[0]].append( tmpzone )
+
+            if not zones.has_key(tmpzone.getArea()):
+                logging.warning( "A zone area which wasn't defined has been added. %s" % tmpzone.getArea() )
+                zones[tmpzone.getArea()] = {}
+
+            if not zones[tmpzone.getArea()].has_key(tmpzone.getLocation()):
+                logging.warning( "A zone location which wasn't defined has been added. %s" % tmpzone.getLocation() )
+                zones[tmpzone.getArea()][tmpzone.getLocation()] = []
+
+            # TO DO: test if the rule is current!
+            zones[tmpzone.getArea()][tmpzone.getLocation()].append( tmpzone )
 
         elif context.lower() == "r":
             r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
             if r:
                 tmp = list(r.groups())
                 tmp.pop(0) # discard "Rule" field.
+
                 if not rules.has_key(tmp[0]):
                     rules[tmp[0]] = []
+
                 tmprule = tzRule(*tmp)
                 if tmprule.isCurrent():
                     rules[tmp[0]].append( tmprule )
@@ -489,7 +537,13 @@ for zone_file in zone_files:
 #~ print json.dumps(rules, cls=jsonEncoderHelper)
 
 for rk in rules.keys():
-    print rk
-    for zone in rules[rk]:
-        print "****",zone
+    print "Rule [%s]" % rk
+    for r in rules[rk]:
+        print "\t%s" % r
 
+for zak in zones.keys():
+    print "Zone Area [%s]" % zak
+    for zlk in zones[zak].keys():
+        print "\tLocation [%s]" % zlk
+        for z in zones[zak][zlk]:
+            print "\t\t%s" % z
