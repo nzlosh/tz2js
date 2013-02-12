@@ -41,14 +41,22 @@ Installation
 ============
 
   * Requirements
-    Python 2.7
-    IANA tz data archive
+    * Python 2.7
+    * IANA tz data archive
 
-  1 Get the tz data archive file.
+  1 Download the IANA timezone data archive file.
     > wget 'http://www.iana.org/time-zones/repository/releases/tzdata2012j.tar.gz'
 
-  2 Extact the arcihve to your desired directory.
-    > tar xzvf tzdata2012j.tar.gz /tmp
+  2 Extract the archive to your desired directory.
+    > mkdir /tmp/tzdata2012j
+    > tar xzvf tzdata2012j.tar.gz /tmp/tzdata2012j
 
-   3 Execute tz2js.py passing the tzdata's parent directory.
-    > Execute tz2js.py /tmp.
+   3 Execute tz2js.py with tzdata's parent directory as an argument.
+    > ./tz2js.py /tmp
+
+
+Thanks to ...
+=============
+
+The group of people that maintain the timezone's extremely detailed and
+complex database.  Great work people!
