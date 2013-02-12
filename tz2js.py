@@ -26,7 +26,7 @@
 # Required modules
 import os, sys, re, json, time, datetime, logging
 
-logging.basicConfig( level=logging.DEBUG )
+logging.basicConfig( ) # level=logging.DEBUG
 
 def usage():
     print "\nUsage: %s <path to tzdata directory>\n" % sys.argv[0]
@@ -311,19 +311,30 @@ class tzZone(object):
         """
         Examples "1916 May 14 23:00" or "1911" and anything in between.
         """
+        default = [MAX_YEAR, 1, 1, 0, 0, 0]
         tmp = until.split(" ")
         if len(tmp[0]) == 0:
             # Empty until field, set the date to max.
-            tmp = [MAX_YEAR, 12, 31, 23, 59, 59]
+            tmp = default
             logging.debug("*** %s: Year Until = %s" % (self.__class__.__name__, str(tmp) ) )
-        else:
-            if "" in tmp:
-                logging.debug( "Fixed %s", str(tmp) )
-                tmp.remove('')
-                # TODO: Implement parsing for the year_until
-            if len(tmp) >= 2:
-                tmp[1] = months.index(tmp[1])+1
-        self.until = tmp
+
+        if "" in tmp:
+            logging.debug( "Fixed %s", str(tmp) )
+            tmp.remove('')
+
+         # TODO: Implement parsing for the year_until
+        if len(tmp) >= 2 and type(tmp[1]) == type(""):
+            tmp[1] = months.index(tmp[1])+1
+        x = 0
+        for i in tmp:
+            try:
+                tmp[x] = int(tmp[x])
+                default[x] = tmp[x]
+                x+=1
+            except ValueError:
+                default[x] = tmp[x]
+                x+=1
+        self.until = default
 
 
     def isCurrent(self):
@@ -492,8 +503,8 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                 logging.warning( "A zone location which wasn't defined has been added. %s" % tmpzone.getLocation() )
                 zones[tmpzone.getArea()][tmpzone.getLocation()] = []
 
-            # TO DO: test if the rule is current!
-            zones[tmpzone.getArea()][tmpzone.getLocation()].append( tmpzone )
+            if tmpzone.isCurrent():
+                zones[tmpzone.getArea()][tmpzone.getLocation()].append( tmpzone )
 
         elif context.lower() == "r":
             r = re.search("^(R[^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)(.*)", line)
@@ -533,17 +544,17 @@ rules = {}
 for zone_file in zone_files:
     rules.update( parseRuleZoneFile(zone_file, zones, rules) )
 
-#~ print json.dumps(zones)
-#~ print json.dumps(rules, cls=jsonEncoderHelper)
+print "zones =",json.dumps(zones, cls=jsonEncoderHelper)
+print "rules =",json.dumps(rules, cls=jsonEncoderHelper)
 
-for rk in rules.keys():
-    print "Rule [%s]" % rk
-    for r in rules[rk]:
-        print "\t%s" % r
-
-for zak in zones.keys():
-    print "Zone Area [%s]" % zak
-    for zlk in zones[zak].keys():
-        print "\tLocation [%s]" % zlk
-        for z in zones[zak][zlk]:
-            print "\t\t%s" % z
+#~ for rk in rules.keys():
+    #~ print "Rule [%s]" % rk
+    #~ for r in rules[rk]:
+        #~ print "\t%s" % r
+#~ 
+#~ for zak in zones.keys():
+    #~ print "Zone Area [%s]" % zak
+    #~ for zlk in zones[zak].keys():
+        #~ print "\tLocation [%s]" % zlk
+        #~ for z in zones[zak][zlk]:
+            #~ print "\t\t%s" % z
