@@ -49,6 +49,7 @@ Installation
 
   2 Extract the archive to your desired directory.
     > mkdir /tmp/tzdata2012j
+
     > tar xzvf tzdata2012j.tar.gz /tmp/tzdata2012j
 
    3 Execute tz2js.py with tzdata's parent directory as an argument.

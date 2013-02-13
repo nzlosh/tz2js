@@ -326,28 +326,9 @@ class TimeZone(TimeZoneBase):
 
     def setGMTOffset(self, gmt_off):
         """
-        The gmt_off is expected in the form of "-1:33:40" and will be stored
-        internally as the number of seconds.
+        gmt_off is formatted as "-1:33:40" and is converted seconds.
         """
-        logging.debug("GMT offset convert to seconds %s" % gmt_off)
-
-        gmt_offset_time = 0             # The default value for the offset is 0:0:0 GMT
-        time_factor = [3600,60,1]       # The factors to apply to each value h:m:s to calculate seconds.
-        signed = 1                      # signed controls the factorisation of the time as positive or negitive
-
-        # Determine the number's sign
-        tmp = gmt_off.split("-",1)
-        if len(tmp) == 2:               # A 2 subscript array means a negative digit.
-            signed = -1
-            gmt_off = tmp[1]
-
-        # Calculate time in seconds.
-        for x, v in enumerate(gmt_off.split(":")):
-            gmt_offset_time += int(v) * time_factor[x]
-
-        # Apply sign to conversion
-        self.gmt_off = gmt_offset_time * signed
-        logging.debug("\t == %s" % self.gmt_off)
+        self.gmt_off = self._TimeToSeconds(gmt_off)
 
 
     def getGMTOffset(self):
