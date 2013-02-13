@@ -26,7 +26,7 @@
 # Required modules
 import os, sys, re, json, time, datetime, logging
 
-logging.basicConfig( ) # level=logging.DEBUG
+logging.basicConfig( level=logging.DEBUG ) # Numeric logging level for the message (DEBUG, INFO, WARNING, ERROR, CRITICAL).
 
 def usage():
     print "\nUsage: %s <path to tzdata directory>\n" % sys.argv[0]
@@ -82,7 +82,37 @@ class DateTime(datetime.datetime):
         return self.isoformat() # present dates in ISO 8601 format
 
 
-class tzRule(object):
+class TimeZoneBase(object):
+    def __init__(self):
+        pass
+
+    def _TimeToSeconds(self, _time):
+        """
+        Expected form for _time is "-1:33:40".
+        Returns an integer representing the total number of seconds.
+        """
+        logging.debug("Convert to seconds %s" % _time)
+
+        offset_time = 0                 # The default value for the offset is 0:0:0 GMT
+        time_factor = [3600,60,1]       # The factors to apply to each value h:m:s to calculate seconds.
+        signed = 1                      # signed controls the factorisation of the time as positive or negitive
+
+        # Determine the number's sign
+        tmp = _time.split("-",1)
+        if len(tmp) == 2:               # A 2 subscript array means a negative digit.
+            signed = -1
+            gmt_off = tmp[1]
+
+        # Calculate time in seconds.
+        for x, v in enumerate(_time.split(":")):
+            offset_time += int(v) * time_factor[x]
+
+        # Apply sign to conversion
+        logging.debug("\t == %s" % offset_time * signed)
+        return offset_time * signed
+
+
+class TimeZoneRule(TimeZoneBase):
     """
     Holds a timezone rule.  The expected format is a list which contains
     the [Rule, NAME, FROM, TO, TYPE, IN, ON, AT, SAVE, LETTER/S]
@@ -156,11 +186,15 @@ class tzRule(object):
 
 
     def setDayOn(self, day_on):
+
+        # Initialise a temporary array with will hold the follow subscripts:
+        # [day of the week, comparrison operator, day of the month]
+        tmp = [None, None, None]
+
         if day_on.isdigit():
-            self.day_on = int(day_on)
+            tmp[2] = int(day_on)
+            self.day_on = tmp
         else:
-            # confirm the format is valid then calculate the day of the month.
-            self.day_on = "f(%s)" % day_on
             try:
                 day, comp, dom = re.search('(\w+)(\W+)(\d+)',day_on).groups()
                 logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, comp, dom) )
@@ -168,25 +202,31 @@ class tzRule(object):
                 pass
             try:
                 day = re.search('last(\w+)', day_on).groups()[0]
-                # TODO: Handle calculation of last/first day of month etc.
                 logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, "<=", 31) )
             except(AttributeError):
                 pass
+        # confirm the format is valid then calculate the day of the month.
+        self.day_on = "f(%s)" % day_on
 
 
     def setTimeAt(self, time_at):
         """
-        Expects time [h]h:mm format.  Also seen 0 as a value.
+        Expects time [h]h:mm[X] format.  Also seen 0 as a value.
+        FIXME: X is a letter of which the representation is yet to be determined.
         """
-        logging.debug("%s: Time At: %s" % (self.__class__.__name__, time_at) )
-        # Handle special case of 0
-        if time_at == "0":
-            time_at = "0:00"
-        self.hour, self.minute = time_at.split(":")
-        self.time_at = time_at
+        special_char = None
+        # Check if time_at has a trailing special character.
+        if not time_at[-1:].isdigit():
+            special_char = time_at[-1:]
+            time_at = time_at[:-1]
+
+        logging.debug("%s: Time At: %s, %s"% (self.__class__.__name__, time_at, special_char) )
+        self.time_at = [self._TimeToSeconds(time_at), special_char]
+
 
     def getTimeAt(self):
         return self.time_at
+
 
     def getDateTo(self):
         """
@@ -228,6 +268,7 @@ class tzRule(object):
             self.letters
         )
 
+
     def toJSON(self):
         return {
             "name": self.name,
@@ -244,7 +285,7 @@ class tzRule(object):
 
 
 
-class tzZone(object):
+class TimeZone(TimeZoneBase):
     """
     [Zone, NAME, GMTOFF, RULES, FORMAT, [UNTIL]] or
     [GMTOFF, RULES, FORMAT, [UNTIL]]
@@ -284,7 +325,29 @@ class tzZone(object):
 
 
     def setGMTOffset(self, gmt_off):
-        self.gmt_off = gmt_off
+        """
+        The gmt_off is expected in the form of "-1:33:40" and will be stored
+        internally as the number of seconds.
+        """
+        logging.debug("GMT offset convert to seconds %s" % gmt_off)
+
+        gmt_offset_time = 0             # The default value for the offset is 0:0:0 GMT
+        time_factor = [3600,60,1]       # The factors to apply to each value h:m:s to calculate seconds.
+        signed = 1                      # signed controls the factorisation of the time as positive or negitive
+
+        # Determine the number's sign
+        tmp = gmt_off.split("-",1)
+        if len(tmp) == 2:               # A 2 subscript array means a negative digit.
+            signed = -1
+            gmt_off = tmp[1]
+
+        # Calculate time in seconds.
+        for x, v in enumerate(gmt_off.split(":")):
+            gmt_offset_time += int(v) * time_factor[x]
+
+        # Apply sign to conversion
+        self.gmt_off = gmt_offset_time * signed
+        logging.debug("\t == %s" % self.gmt_off)
 
 
     def getGMTOffset(self):
@@ -322,23 +385,21 @@ class tzZone(object):
             logging.debug( "Fixed %s", str(tmp) )
             tmp.remove('')
 
-         # TODO: Implement parsing for the year_until
+        # TODO: Implement parsing for the year_until
         if len(tmp) >= 2 and type(tmp[1]) == type(""):
             tmp[1] = months.index(tmp[1])+1
-        x = 0
-        for i in tmp:
+
+        for x, i in enumerate(tmp):
             try:
-                tmp[x] = int(tmp[x])
-                default[x] = tmp[x]
-                x+=1
+                default[x] = int(tmp[x])
             except ValueError:
                 default[x] = tmp[x]
-                x+=1
         self.until = default
 
 
     def isCurrent(self):
-        return self.until[0] >= time.gmtime()[0]    # Verify this code is correct!
+        # For the sake of simplicity on the year is tested.
+        return self.until[0] >= time.gmtime()[0]
 
 
     def getYearUntil(self):
@@ -383,7 +444,6 @@ def parseZoneFile():
 
     z = {}
 
-
     zone_file = os.path.join(tzpath,"zone.tab")
 
     if not os.path.exists(zone_file):
@@ -401,7 +461,7 @@ def parseZoneFile():
         # after 1st split and then split the remainder as a tab delimited record.
         rec = line.strip("\n").split("#",1)[0].strip().split("\t")
 
-        # The only information required are Zone names.  Which are split
+        # The only information required are Zone names.  They're split
         # into Area and Location.
         area, location = rec[2].split("/",1)
         if not z.has_key(area):
@@ -493,7 +553,7 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
             # Strip white space from last field.
             tmp[4] = tmp[4].strip()
 
-            tmpzone = tzZone(*tmp)
+            tmpzone = TimeZone(*tmp)
 
             if not zones.has_key(tmpzone.getArea()):
                 logging.warning( "A zone area which wasn't defined has been added. %s" % tmpzone.getArea() )
@@ -515,7 +575,7 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                 if not rules.has_key(tmp[0]):
                     rules[tmp[0]] = []
 
-                tmprule = tzRule(*tmp)
+                tmprule = TimeZoneRule(*tmp)
                 if tmprule.isCurrent():
                     rules[tmp[0]].append( tmprule )
             else:
@@ -544,14 +604,14 @@ rules = {}
 for zone_file in zone_files:
     rules.update( parseRuleZoneFile(zone_file, zones, rules) )
 
-print "zones =",json.dumps(zones, cls=jsonEncoderHelper)
+print "zones =",json.dumps(zones, cls=jsonEncoderHelper) # , indent=4
 print "rules =",json.dumps(rules, cls=jsonEncoderHelper)
 
 #~ for rk in rules.keys():
     #~ print "Rule [%s]" % rk
     #~ for r in rules[rk]:
         #~ print "\t%s" % r
-#~ 
+#~
 #~ for zak in zones.keys():
     #~ print "Zone Area [%s]" % zak
     #~ for zlk in zones[zak].keys():
