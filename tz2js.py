@@ -186,7 +186,6 @@ class TimeZoneRule(TimeZoneBase):
 
 
     def setDayOn(self, day_on):
-
         # Initialise a temporary array with will hold the follow subscripts:
         # [day of the week, comparrison operator, day of the month]
         tmp = [None, None, None]

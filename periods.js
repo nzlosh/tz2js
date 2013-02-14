@@ -10,67 +10,67 @@
 
 ---- Date / Time / Timezone
 
-	Javascripts Date object calculations are done using milliseconds
-	epoch timestamp.
+    Javascripts Date object calculations are done using milliseconds
+    epoch timestamp.
 
 */
 
 
 function htmlLine(msg)
 {
-	document.write("<p>",msg,"</p>");
+    document.write("<p>",msg,"</p>");
 }
 
 function periods()
 {
-	var d = new Date(0);
-	htmlLine(d);
-	htmlLine(d.toUTCString());
-	htmlLine( new Date(Date.UTC(2012,02,30)) );
-	htmlLine( "Is the date within the range? " + betweenRange() );
+    var d = new Date(0);
+    htmlLine(d);
+    htmlLine(d.toUTCString());
+    htmlLine( new Date(Date.UTC(2012,02,30)) );
+    htmlLine( "Is the date within the range? " + betweenRange() );
 }
 
 function betweenRange(lower, upper)
 {
-	var now = new Date();
+    var now = new Date();
 
-	if (lower === undefined )
-	{
-		lower = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0);
-	}
-	if ( upper === undefined )
-	{
-		upper = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23,59,59);
-	}
+    if (lower === undefined )
+    {
+        lower = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0);
+    }
+    if ( upper === undefined )
+    {
+        upper = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23,59,59);
+    }
 
-	l = dateToDayEpoch(lower);
-	u = dateToDayEpoch(upper);
-	n = dateToDayEpoch(now);
+    l = dateToDayEpoch(lower);
+    u = dateToDayEpoch(upper);
+    n = dateToDayEpoch(now);
 
-	htmlLine( "</p><h2>lower</h2><p> Timestamp = " + l );
-	htmlLine( " Localtime = " + l);
-	htmlLine( " UTC time = " + l.toUTCString);
+    htmlLine( "</p><h2>lower</h2><p> Timestamp = " + l );
+    htmlLine( " Localtime = " + l);
+    htmlLine( " UTC time = " + l.toUTCString);
 
 
-	return l < n && n < u;
+    return l < n && n < u;
 }
 
 function dateToDayEpoch(d)
 {
-	return d.getTime();
+    return d.getTime();
 }
 
 function RangeRule(r)
 {
 
-	if ( r.length < 3 )
-	{
-		htmlLine("Error, insufficient information to check range.");
-		return false;
-	}
+    if ( r.length < 3 )
+    {
+        htmlLine("Error, insufficient information to check range.");
+        return false;
+    }
 
-	// extract time with /^(\d\d?):?(\d{0,2}):?(\d{0,2})/;
-	// extract day of the week or month of the year with .toLowerCase().substr(0,3);
+    // extract time with /^(\d\d?):?(\d{0,2}):?(\d{0,2})/;
+    // extract day of the week or month of the year with .toLowerCase().substr(0,3);
 
 // [ false, ["00:00:01", "[+/]23:59:59","00:00:01"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
 }
@@ -84,7 +84,7 @@ RangeRule([ false, "00:00:01-23:59:59", ["monday","friday"], ["jan","dec"], "eur
  * range object expects a text representation of it's ranges, it transforms
  * the text representation into a min/max list which can then be used to
  * verify if the current time falls within the given range.
-*/
+ */
 range = {
 time: [ [0,0,0,0], [23,59,59,999] ],
 dow: [ 1, 7 ], // 7 is sun, override 0.
@@ -99,28 +99,28 @@ new Date(Date.UTC(2012,1,1,range.time[1][0],range.time[1][1],range.time[1][2],ra
 
 
 var rule = {
-	weeknames: {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 },
-	months: {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5,
-			 "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11},
-	now: new Date(),
-	execute: true,
-	times: [[0,0,1], [23,59,59]],
-	weekddays: "",
-	timezone: "europe/paris"
+    weeknames: {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 },
+    months: {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5,
+             "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11},
+    now: new Date(),
+    execute: true,
+    times: [[0,0,1], [23,59,59]],
+    weekddays: "",
+    timezone: "europe/paris"
 };
 
 function timerange(r) {
-	this.range = r,
-	this.begin = {h:0,m:0,s:0},
-	this.end = {h:23,m:59,s:59},
-	this.limit = {min:0, max:86400000}
-	
-	// private method 
-	var _parseRange = function(){
-		if ( this.range !== undefined ) {
-			// todo
-		}
-	}
+    this.range = r,
+    this.begin = {h:0,m:0,s:0},
+    this.end = {h:23,m:59,s:59},
+    this.limit = {min:0, max:86400000}
+
+    // private method
+    var _parseRange = function(){
+        if ( this.range !== undefined ) {
+            // todo
+        }
+    }
 }
 
 
@@ -146,3 +146,24 @@ WeeklyRangeRule ([ false, ["00:00:01", "23:59:59"], ["monday","friday"], ["jan",
 RepeatRule (["<=31", "Sunday"])
 RepeatRule ([50, "WeekOfYear"])
 */
+
+now = new Date();
+msPerLeapYear = 126230400000;
+msPerYear = 31536000000;
+msPerDay = 86400000;
+msPerHour = 3600000;
+msPerMin = 60000;
+
+
+/* Start to work on the calculations for converting epoch time to Y/M/D h:m:s:ms time. */
+msToday = now.getTime() % msPerDay;
+msThisHour = msToday % msPerHour;
+msThisMinute = msToday % msPerMin;
+
+hour = ( msToday -(msToday % msPerHour) ) / msPerHour;
+minute = ( msThisHour - ( msThisHour % msPerMin) ) / msPerMin;
+second = ( msThisMinute - ( msThisMinute % 1000 ) ) / 1000;
+millisecond = msThisMinute % 1000;
+
+htmlLine( hour +":"+ minute +":"+ second +":"+ millisecond);
+htmlLine( (now.getTime() - msToday) / msPerYear );
