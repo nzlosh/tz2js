@@ -84,7 +84,7 @@ class DateTime(datetime.datetime):
 
 class TimeZoneBase(object):
     def __init__(self):
-        pass
+        raise NotImplemented
 
     def _TimeToSeconds(self, _time):
         """
@@ -101,15 +101,20 @@ class TimeZoneBase(object):
         tmp = _time.split("-",1)
         if len(tmp) == 2:               # A 2 subscript array means a negative digit.
             signed = -1
-            gmt_off = tmp[1]
+            _time = tmp[1]
+
+        logging.debug("Post sign treatment %s is a %s %s" % (_time, type(_time), signed) )
 
         # Calculate time in seconds.
         for x, v in enumerate(_time.split(":")):
             offset_time += int(v) * time_factor[x]
 
+        logging.debug("Post time treatment %s is a %s and %s is a %s" % (offset_time, type(offset_time), signed, type(signed)) )
+
         # Apply sign to conversion
-        logging.debug("\t == %s" % offset_time * signed)
-        return offset_time * signed
+        res = offset_time * signed      # BUGFIX: negative numbers weren't
+        logging.debug("\t == %s" % res )
+        return res
 
 
 class TimeZoneRule(TimeZoneBase):
@@ -124,7 +129,7 @@ class TimeZoneRule(TimeZoneBase):
         self.setMonthIn(month_in)       # day_on are used to calculate
         self.setDayOn(day_on)           # lastDay/firstDay entries correctly.
         self.setTimeAt(time_at)
-        self.rule_type = rule_type
+        self.setRuleType(rule_type)
         self.save = save
         self.setLetters(letters)
 
@@ -186,6 +191,9 @@ class TimeZoneRule(TimeZoneBase):
 
 
     def setDayOn(self, day_on):
+        """
+        TODO: Fix bugs in the function and verify the logic.
+        """
         # Initialise a temporary array with will hold the follow subscripts:
         # [day of the week, comparrison operator, day of the month]
         tmp = [None, None, None]
@@ -252,6 +260,16 @@ class TimeZoneRule(TimeZoneBase):
 
     def getLetters(self):
         return self.letters
+
+
+    def setRuleType(self, rule_type):
+        if rule_type == "-":
+            rule_type = None
+        self.rule_type = rule_type
+
+
+    def getRuleType(self, rule_type):
+        return self.rule_type
 
 
     def __str__(self):

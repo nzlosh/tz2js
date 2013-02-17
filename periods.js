@@ -16,9 +16,13 @@
 */
 
 
-function htmlLine(msg)
+function htmlLine(msg, tag)
 {
-    document.write("<p>",msg,"</p>");
+	if (tag ==  undefined)
+	{
+		tag = "p"
+	}
+    document.write("<"+tag+">",msg,"</"+tag+">");
 }
 
 function periods()
@@ -167,3 +171,27 @@ millisecond = msThisMinute % 1000;
 
 htmlLine( hour +":"+ minute +":"+ second +":"+ millisecond);
 htmlLine( (now.getTime() - msToday) / msPerYear );
+
+
+/* Test Date object with tz data values" */
+function tzDate(tz) {
+d = new Date();
+
+htmlLine(tz.area + "/" + tz.location , "h2");
+
+htmlLine("UTC Time : " + d.getTime() + " is " + d.toUTCString() );
+
+d.setTime( d.getTime() + (tz.gmt_off*1000) );
+htmlLine(d.getTime() + "  is " + d.toUTCString() + " with zone as " + tz.zone_format + " and refers to rule " + tz.rules);
+}
+
+tzDate(zones["Africa"]["Algiers"][0]);
+tzDate(zones["Antarctica"]["Casey"][0]);
+tzDate(zones["Asia"]["Kabul"][0]);
+tzDate(zones["Australia"]["Darwin"][0]);
+tzDate(zones["Europe"]["London"][0]);
+/* 2 examples for America */
+tzDate(zones["EST"]["null"][0]);
+tzDate(zones["America"]["New_York"][0]);
+
+tzDate(zones["America"]["Argentina/Buenos_Aires"][0]);
