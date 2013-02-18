@@ -18,10 +18,7 @@
 
 function htmlLine(msg, tag)
 {
-	if (tag ==  undefined)
-	{
-		tag = "p"
-	}
+    tag = tag == undefined ? "p" : tag;
     document.write("<"+tag+">",msg,"</"+tag+">");
 }
 
@@ -195,3 +192,25 @@ tzDate(zones["EST"]["null"][0]);
 tzDate(zones["America"]["New_York"][0]);
 
 tzDate(zones["America"]["Argentina/Buenos_Aires"][0]);
+
+/*
+ * "Split First" splits a string on the first occurrence
+ * of the given character.
+ *
+ * Returns the string argument if no occurrence is found,
+ * Returns an array with the split .
+ *
+*/
+function splitfirst(splitee, split_char) {
+    pos = splitee.indexOf(split_char);
+    if (pos == -1 ) {
+        return splitee;
+    }
+    return [splitee.substr(0, pos), splitee.substr(pos+1)];
+}
+getZone = splitfirst("America/Argentina/Buenos_Aires", "/");
+tzDate(zones[getZone[0]][getZone[1]][0]);
+
+for ( var loc in zones ) {
+    htmlLine(loc);
+}

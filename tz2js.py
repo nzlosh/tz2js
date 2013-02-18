@@ -112,7 +112,7 @@ class TimeZoneBase(object):
         logging.debug("Post time treatment %s is a %s and %s is a %s" % (offset_time, type(offset_time), signed, type(signed)) )
 
         # Apply sign to conversion
-        res = offset_time * signed      # BUGFIX: negative numbers weren't
+        res = offset_time * signed      # BUGFIX: negative numbers weren't managed correctly.
         logging.debug("\t == %s" % res )
         return res
 
@@ -396,7 +396,7 @@ class TimeZone(TimeZoneBase):
 
 
     def isCurrent(self):
-        # For the sake of simplicity on the year is tested.
+        # For the sake of simplicity, only the year is tested.
         return self.until[0] >= time.gmtime()[0]
 
 
