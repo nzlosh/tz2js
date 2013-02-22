@@ -26,7 +26,7 @@
 # Required modules
 import os, sys, re, json, time, datetime, logging
 
-logging.basicConfig( level=logging.DEBUG ) # Numeric logging level for the message (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+logging.basicConfig( )#level=logging.DEBUG ) # Numeric logging level for the message (DEBUG, INFO, WARNING, ERROR, CRITICAL).
 
 def usage():
     print "\nUsage: %s <path to tzdata directory>\n" % sys.argv[0]
@@ -35,8 +35,8 @@ def usage():
 if len(sys.argv) != 2:
     usage()
 
-tzdata_version = "2012j"
-tzpath = os.path.join(sys.argv[1],"tzdata"+tzdata_version)
+tzpath = os.path.join(sys.argv[1])
+
 if not os.path.exists(tzpath):
     logging.critical( "File '%s' doesn't exist" % tzpath )
     sys.exit(2)
@@ -583,9 +583,25 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
             r = re.search("^(L[^\s]+)\s+([^\s]+)\s+([^\s]+)", line)
             if r:
                 tmp = list(r.groups())
-                if not rules.has_key(tmp[1]):
-                    rules[tmp[1]] = []
-                rules[tmp[2]] = rules[tmp[1]]
+                tmp.pop(0) # discard "Link" field.
+
+                # Link  Europe/Rome Europe/Vatican  (Link SOURCE TARGET)
+                src = tmp[0].split("/",1)
+                if len(src) == 1:
+                    src.append(None)
+                src_area, src_location = src
+
+                tgt = tmp[1].split("/",1)
+                if len(tgt) == 1:
+                    tgt.append(None)
+                tgt_area, tgt_location = tgt
+
+                if not zones.has_key(tgt_area):
+                    zones[tgt_area] = {}
+                logging.debug("Target zone: %s %s, Source: %s %s" % (tgt_area, tgt_location, src_area, src_location) )
+                # This doesn't handle multiple zones correctly.  Fix it?
+                zones[tgt_area][tgt_location] = zones[src_area][src_location]
+                logging.debug("Linked: %s to %s" % (zones[tgt_area][tgt_location], zones[src_area][src_location]) )
             else:
                 raise ValueError("UNKNOWN LINK FORMAT! %s" % line)
 

@@ -158,12 +158,14 @@ msPerMin = 60000;
 
 /* Start to work on the calculations for converting epoch time to Y/M/D h:m:s:ms time. */
 msToday = now.getTime() % msPerDay;
-msThisHour = msToday % msPerHour;
-msThisMinute = msToday % msPerMin;
 
-hour = ( msToday -(msToday % msPerHour) ) / msPerHour;
-minute = ( msThisHour - ( msThisHour % msPerMin) ) / msPerMin;
-second = ( msThisMinute - ( msThisMinute % 1000 ) ) / 1000;
+msThisHour = msToday % msPerHour;
+hour = parseInt( msToday / msPerHour );
+
+msThisMinute = msToday % msPerMin;
+minute = parseInt( msThisHour / msPerMin );
+
+second = parseInt( msThisMinute / 1000 );
 millisecond = msThisMinute % 1000;
 
 htmlLine( hour +":"+ minute +":"+ second +":"+ millisecond);
@@ -172,26 +174,39 @@ htmlLine( (now.getTime() - msToday) / msPerYear );
 
 /* Test Date object with tz data values" */
 function tzDate(tz) {
-d = new Date();
+    d = new Date();
 
-htmlLine(tz.area + "/" + tz.location , "h2");
+    htmlLine(tz.area + "/" + tz.location , "h2");
 
-htmlLine("UTC Time : " + d.getTime() + " is " + d.toUTCString() );
+    htmlLine("UTC Time : " + d.getTime() + " is " + d.toUTCString() );
 
-d.setTime( d.getTime() + (tz.gmt_off*1000) );
-htmlLine(d.getTime() + "  is " + d.toUTCString() + " with zone as " + tz.zone_format + " and refers to rule " + tz.rules);
+    d.setTime( d.getTime() + (tz.gmt_off*1000) );
+    htmlLine(d.getTime() + "  is " + d.toUTCString() + " with zone as " + tz.zone_format + " and refers to rule " + tz.rules);
+
+    // Display the rule information for the timezone.
+    if ( tz.rules != "-" ) {
+        htmlLine( "Rules:" + rules[tz.rules].length );
+        // if the are rules defined, display them
+        if ( rules[tz.rules].length > 0 ) {
+            for ( r in rules[tz.rules] ) {
+                htmlLine(   rules[tz.rules][r]["rule_type"]+ ", " +
+                            rules[tz.rules][r]["day_on"]+ ", " +
+                            rules[tz.rules][r]["save"]+ ", " +
+                            rules[tz.rules][r]["letters"]+ ", " +
+                            rules[tz.rules][r]["name"]+ ", " +
+                            rules[tz.rules][r]["month_in"]+ ", " +
+                            rules[tz.rules][r]["year_to"]+ ", " +
+                            rules[tz.rules][r]["year_from"]+ ", " +
+                            rules[tz.rules][r]["time_at"]
+                );
+            }
+        } else {
+            htmlLine("To do: replace any %s values in the zone's text, the rules for this zone were older than the current date.");
+        }
+    } else {
+        htmlLine("To do: replace any %s values in the zone's text, because there are no rules for this zone.");
+    }
 }
-
-tzDate(zones["Africa"]["Algiers"][0]);
-tzDate(zones["Antarctica"]["Casey"][0]);
-tzDate(zones["Asia"]["Kabul"][0]);
-tzDate(zones["Australia"]["Darwin"][0]);
-tzDate(zones["Europe"]["London"][0]);
-/* 2 examples for America */
-tzDate(zones["EST"]["null"][0]);
-tzDate(zones["America"]["New_York"][0]);
-
-tzDate(zones["America"]["Argentina/Buenos_Aires"][0]);
 
 /*
  * "Split First" splits a string on the first occurrence
@@ -208,9 +223,14 @@ function splitfirst(splitee, split_char) {
     }
     return [splitee.substr(0, pos), splitee.substr(pos+1)];
 }
-getZone = splitfirst("America/Argentina/Buenos_Aires", "/");
-tzDate(zones[getZone[0]][getZone[1]][0]);
 
-for ( var loc in zones ) {
-    htmlLine(loc);
+/* An example of using splitfirst
+[area,loc] = splitfirst("America/Argentina/Buenos_Aires", "/");
+tzDate(zones[area][loc][0]);
+ */
+for ( var area in zones ) {
+    for ( var loc in zones[area]) {
+        tzDate(zones[area][loc][0]);
+    }
 }
+
