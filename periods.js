@@ -79,23 +79,36 @@ function RangeRule(r)
 periods();
 
 
-RangeRule([ false, "00:00:01-23:59:59", ["monday","friday"], ["jan","dec"], "europe/paris" ]);
+RangeRule([ false, ["00:00:00","23:59:59"], ["mon","fri"], ["jan","dec"], "europe/paris" ]);
 
 /*
- * range object expects a text representation of it's ranges, it transforms
+ * Period object expects a text representation of it's ranges, it transforms
  * the text representation into a min/max list which can then be used to
  * verify if the current time falls within the given range.
  */
-range = {
-time: [ [0,0,0,0], [23,59,59,999] ],
-dow: [ 1, 7 ], // 7 is sun, override 0.
-week: [ 1, 52 ],
-dom: [ 1, 31 ],
-wom: [ 1, 5 ],
-month: [ 1, 12 ],
-year: [ 2000, 2050 ]
+var Period = function(exe, time, dow, week, dom, wom, month, year){
+    this.execute = parseExecute(exe);
+    this.time = this.parseTime(time);
+    dow: [ 1, 7 ], // 7 is sun, override 0.
+    week: [ 1, 52 ],
+    dom: [ 1, 31 ],
+    wom: [ 1, 5 ],
+    month: [ 1, 12 ],
+    year: [ 2000, 2050 ]
 }
-range.time;
+Period.prototype.parseTime(t) {
+    min = [0,0,0,0];
+    max = [23,59,59,999];
+    if (t !== undefined) {
+        // to do ... parse t as either a single string, a string encoded time, or a list time.
+        // if a single string / list time is supplied, it's assumed to be the minimum time.
+    }
+
+    this.time = [ min , max ];
+}
+
+var range = Period;
+
 new Date(Date.UTC(2012,1,1,range.time[1][0],range.time[1][1],range.time[1][2],range.time[1][3])).toUTCString();
 
 
