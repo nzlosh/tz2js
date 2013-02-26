@@ -71,20 +71,34 @@ days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
 months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11};
 
 /*
- * Period object expects a text representation of it's ranges, it transforms
- * the text representation into a min/max list which can then be used to
- * verify if the current time falls within the given range.
+ * Period accepts a key value pair structure to over-ride it's default parameters.
+ * The parameters are then used to determine if the current time is with the defined period.
  */
-function Period(exe, time, dow, dom, wom, month, week, year, tz){
-    this.execute  = exe;
-    this.time     = time;
-    this.dow      = [ 1,  7 ]; // 7 is sun, override 0.
-    this.week     = [ 1, 52 ];
-    this.dom      = [ 1, 31 ];
-    this.month    = [ 1, 12 ];
-    this.year     = [ 2000, 2050 ];
-    this.timezone = "europe/paris";
+function Period(kwargs){
+    this.default_period = {
+        execute: false,
+        time: [[0,0,0,0],[23,59,59,999]],
+        day: [1,7],
+        dom: [1,31],
+        month: [1,12],
+        week: [1,52],
+        year: undefined,
+        tz: "europe/paris"
+    };
+
+    // Merge supplied arguments into default argument set
+    for ( var k in kwargs) {
+        this.default_period[k] = kwargs[k];
+        console.log(this.default_period[k]);
+    }
 }
+Period.prototype.toString = function toString() {
+    s=""
+    for ( var k in this.default_period ) {
+        s += "  " + k +": " + this.default_period[k] ;
+    }
+    return s
+};
 Period.prototype.parseTime = function parseTime(t) {
     /* Accepts a single string, single integer, list string, list integer.
      * Returns list of min/max integer.
@@ -98,9 +112,8 @@ Period.prototype.parseTime = function parseTime(t) {
     this.time = [ min , max ];
 };
 
-Period(false, ["00:00:00","23:59:59"], ["mon","fri"], [1,31], ["jan","dec"], [1,52], [2013,2014], "europe/paris" );
-
-
+Period( { execute:false, time:["00:00:00","23:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } );
+console.log(new Period().toString());
 /*
 Possible range / period usage formats:
 
