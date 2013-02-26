@@ -130,7 +130,7 @@ class TimeZoneRule(TimeZoneBase):
         self.setDayOn(day_on)           # lastDay/firstDay entries correctly.
         self.setTimeAt(time_at)
         self.setRuleType(rule_type)
-        self.save = save
+        self.setSave(save)
         self.setLetters(letters)
 
 
@@ -146,19 +146,20 @@ class TimeZoneRule(TimeZoneBase):
         """
         Test if the current date/time falls with the min/max period.
         """
-        if (self.year_from.year <= time.gmtime()[0] <= self.year_to) or (self.year_from.year > time.gmtime()[0]):
+        if (self.year_from <= time.gmtime()[0] <= self.year_to) or (self.year_from > time.gmtime()[0]):
             logging.debug( "%s: Period included." % self.__class__.__name__ )
             return True
-        logging.debug( "%s: Period excluded %s -> %s" % ( self.__class__.__name__, self.year_from.year, self.year_to ) )
+        logging.debug( "%s: Period excluded %s -> %s" % ( self.__class__.__name__, self.year_from, self.year_to ) )
         return False
 
 
     def setYearFrom(self, year_from):
         """
         Expected input: YYYY formatted year.
+        Returns an array of the date as [YYYY, MM, DD, HH, MM, SS]
         """
         if year_from.isdigit():
-            self.year_from = DateTime(int(year_from), 1, 1)
+            self.year_from = int(year_from)
         else:
             logging.error( "%s: Unhandled format in Year From argument." % self.__class__.__name__ )
             raise "Year From isn't a digit!"
@@ -170,7 +171,7 @@ class TimeZoneRule(TimeZoneBase):
 
     def setYearTo(self, year_to):
         if year_to == "only":               # Transform TO "only" to the equivalent year as FROM
-            self.year_to = self.year_from.year
+            self.year_to = self.year_from
         elif year_to == "max":              # Transform TO "max" arbitrarily selected maximum year.
             self.year_to = MAX_YEAR
             logging.info( "%s: Set 'max' to %d" % ( self.__class__.__name__, MAX_YEAR ) )
@@ -190,36 +191,51 @@ class TimeZoneRule(TimeZoneBase):
         return self.month_in
 
 
+    def setSave(self, save):
+        """
+        Save represents the time to save, which is stored in seconds.
+        """
+        self.save = self._TimeToSeconds(save)
+
+
+    def getSave(self):
+        return self.save
+
+
     def setDayOn(self, day_on):
         """
-        TODO: Fix bugs in the function and verify the logic.
+        Given a day as either a specific day of the month e.g. 1st or 24th etc.
+        Or a day of the week, a comparison operator and a day of the month
+        Return an away [day of the week, comparrison operator, day of the month].
         """
-        # Initialise a temporary array with will hold the follow subscripts:
-        # [day of the week, comparrison operator, day of the month]
-        tmp = [None, None, None]
+
+        # Temporary variables to be used in the return array.
+        day = comp = dom = None
 
         if day_on.isdigit():
-            tmp[2] = int(day_on)
-            self.day_on = tmp
+            day = int(day_on)
+            self.day_on = day
         else:
             try:
                 day, comp, dom = re.search('(\w+)(\W+)(\d+)',day_on).groups()
-                logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, comp, dom) )
             except(AttributeError):
                 pass
             try:
                 day = re.search('last(\w+)', day_on).groups()[0]
-                logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, "<=", 31) )
+                comp = "<="
+                dom = 31
             except(AttributeError):
                 pass
         # confirm the format is valid then calculate the day of the month.
-        self.day_on = "f(%s)" % day_on
+        logging.debug("%s: Day On: %s, %s, %s" % (self.__class__.__name__, day, comp, dom) )
+        self.day_on = [day, comp, dom]
 
 
     def setTimeAt(self, time_at):
         """
         Expects time [h]h:mm[X] format.  Also seen 0 as a value.
         FIXME: X is a letter of which the representation is yet to be determined.
+        As a guess: s=Standard Time, u=UTC and no character means Local TZ Time with daylight savings
         """
         special_char = None
         # Check if time_at has a trailing special character.
@@ -233,20 +249,6 @@ class TimeZoneRule(TimeZoneBase):
 
     def getTimeAt(self):
         return self.time_at
-
-
-    def getDateTo(self):
-        """
-        Return the To date as a Python date object.
-        """
-        raise NotImplementedError
-
-
-    def getDateFrom(self):
-        """
-        Return the From date as Python date object.
-        """
-        raise NotImplementedError
 
 
     def setLetters(self, letters):
@@ -440,7 +442,7 @@ def parseZoneFile():
     4.  Comments; present if and only if the country has multiple rows.
     """
 
-    z = {}
+    tmp_zones = {}
 
     zone_file = os.path.join(tzpath,"zone.tab")
 
@@ -462,12 +464,12 @@ def parseZoneFile():
         # The only information required are Zone names.  They're split
         # into Area and Location.
         area, location = rec[2].split("/",1)
-        if not z.has_key(area):
-            z[area] = {}
-        z[area][location] = []
+        if not tmp_zones.has_key(area):
+            tmp_zones[area] = {}
+        tmp_zones[area][location] = []
 
     zones.close()
-    return z
+    return tmp_zones
 
 
 
@@ -598,7 +600,7 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
 
                 if not zones.has_key(tgt_area):
                     zones[tgt_area] = {}
-                logging.debug("Target zone: %s %s, Source: %s %s" % (tgt_area, tgt_location, src_area, src_location) )
+
                 # This doesn't handle multiple zones correctly.  Fix it?
                 zones[tgt_area][tgt_location] = zones[src_area][src_location]
                 logging.debug("Linked: %s to %s" % (zones[tgt_area][tgt_location], zones[src_area][src_location]) )

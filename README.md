@@ -52,7 +52,7 @@ Installation
 
     > tar xzvf tzdata2012j.tar.gz /tmp/tzdata2012j
 
-   3 Execute tz2js.py with tzdata's parent directory as an argument.
+  3 Execute tz2js.py with tzdata's parent directory as an argument.
     > ./tz2js.py /tmp
 
 
