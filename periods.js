@@ -77,7 +77,7 @@ months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7
 function Period(kwargs){
     this.default_period = {
         execute: false,
-        time: [[0,0,0,0],[23,59,59,999]],
+        time: undefined,
         day: [1,7],
         dom: [1,31],
         month: [1,12],
@@ -91,6 +91,7 @@ function Period(kwargs){
         this.default_period[k] = kwargs[k];
         console.log(this.default_period[k]);
     }
+    
 }
 Period.prototype.toString = function toString() {
     s=""
@@ -111,24 +112,52 @@ Period.prototype.parseTime = function parseTime(t) {
     }
     this.time = [ min , max ];
 };
-
-Period( { execute:false, time:["00:00:00","23:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } );
-console.log(new Period().toString());
 /*
-Possible range / period usage formats:
-
-t = new TimeRange ("00:00:01","23:59:59") // 00h00m01s to 23h59m59s
-tr = new TimeList ([t, new TimeRange("12:00:01-20:01:30")])
-w = new WeekdayRange ("Fri", "Sun") // Friday to Sunday
-wdr = new WeekdayRepeat (["Mon","Wed", x]) // Monday, Wednesday, Friday to Sunday
-woy new WeekofYear([1,2,3,(4-50)])
-
-WeeklyRangeRule ({ x: true, h:{l:[00,00,01], u:[23,59,59]}, d:["monday","friday"], m:["jan","dec"], tz:"europe/paris" });
-WeeklyRangeRule ([ false, ["00:00:01", "23:59:59"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
-
-RepeatRule (["<=31", "Sunday"])
-RepeatRule ([50, "WeekOfYear"])
+ * Period method parseDay
+ * Brief: this method takes a list and ensures the resulting internal
+ * variable is updated with an integer based representation of the period's
+ * range.
+ * @day - a key present in the default period variable.  It is expected
+ * to hold on of the following: a list with two string elements or two
+ * integer elements, or an undefined value (this indicates a default value is to be used.)
+ * Return: No result is explicitly returned, however the internal state of the
+ * Period object is updated with the calculated day range.
 */
+Period.prototype.parseDay = function parseDay()
+{
+	// check for an array or undefined data type.  Anything else gets
+	// a warning message and the default values applied.
+	var day = this.default_period["day"];
+	if ( typeof(day) == typeof([]) ) {
+		if ( day.length > 1 ) {
+			if (type(day[0]) == type("") ) {
+				day[0].toLowerCase().substr(0,3);
+				day[1].toLowerCase().substr(0,3);
+			}
+			for ( var v in day) {
+				day[v] = day[v] < 0 ? 0 : day[v];
+				day[v] = day[v] > 6 ? 6 : day[v];
+			}
+			if (day[0] > day[1]) {
+				day[0] += day[1];
+				day[1] = day[0] - day[1];
+				day[0] = day[0] - day[1];
+			}
+		} else {
+			log.warn("Too few agruments supplied");
+			day = [0,6];
+		}
+	} else {
+		log.warn("The day range isn't an array time, ignoring arguments and using default values");
+		day = [0,6]; // sun to sat
+	}
+	this.default_period["day"] = day;
+};
+
+
+console.log( new Period( { execute:false, time:["00:00:00","11:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } ).toString()  );
+console.log(new Period().toString());
+
 
 now = new Date();
 msPerLeapYear = 126230400000;
