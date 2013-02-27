@@ -18,6 +18,54 @@ Resource references:
 
 */
 
+/*
+ * A logging object inspired by the Python's logger class.
+ * Logs to null, console or web page.
+ */
+var Log = function(level){
+    this.level = level;
+    this.levels = {"debug": 10, "warn": 20, "info": 30};
+    this.active_warn = this.level >= this.levels.debug ? this.html_logger : this.null_logger;
+    this.active_debug = this.level >= this.levels.warn ? this.html_logger : this.null_logger;
+    this.active_info = this.level >= this.levels.info ? this.html_logger : this.null_logger;
+};
+Log.prototype.logger = function(lvl,msg) {
+    console.log(lvl + ": " + msg);
+}
+Log.prototype.html_logger = function(lvl,msg) {
+    document.write("<p><i>" + lvl + ": " + msg + "</i></p>");
+}
+Log.prototype.null_logger = function(lvl,msg) {
+    return true;
+}
+Log.prototype.warn = function warn(msg) {
+    this.active_warn("WARN", msg);
+}
+Log.prototype.debug = function debug(msg) {
+    this.active_debug("DEBUG", msg);
+}
+Log.prototype.info = function info(msg) {
+    this.active_info("INFO", msg);
+}
+// Create the logger object with the required verbosity.
+log = new Log(30);
+
+
+
+// This is http://tech.karbassi.com/2009/12/18/object-type-in-javascript/
+function getType(obj){
+    if (obj === undefined) { return 'undefined'; }
+    if (obj === null) { return 'null'; }
+    return Object.prototype.toString.call(obj).split(' ').pop().split(']').shift().toLowerCase();
+}
+
+/*
+Object.prototype.getType = function(){
+    return Object.prototype.toString.call(this).split(' ').pop().split(']').shift().toLowerCase();
+};
+*/
+
+
 
 function htmlLine(msg, tag)
 {
@@ -89,19 +137,21 @@ function Period(kwargs){
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
         this.default_period[k] = kwargs[k];
-        console.log(this.default_period[k]);
+        log.debug(this.default_period[k]);
     }
-    
+    // Apply logic to supplied agruments
+    this.parseDay();
 }
 Period.prototype.toString = function toString() {
-    s=""
+    s = "";
     for ( var k in this.default_period ) {
         s += "  " + k +": " + this.default_period[k] ;
     }
-    return s
+    return s;
 };
 Period.prototype.parseTime = function parseTime(t) {
-    /* Accepts a single string, single integer, list string, list integer.
+    /*
+     * Accepts a single string, single integer, list string, list integer.
      * Returns list of min/max integer.
      */
     min = [  0,  0,  0,   0];
@@ -125,39 +175,49 @@ Period.prototype.parseTime = function parseTime(t) {
 */
 Period.prototype.parseDay = function parseDay()
 {
-	// check for an array or undefined data type.  Anything else gets
-	// a warning message and the default values applied.
-	var day = this.default_period["day"];
-	if ( typeof(day) == typeof([]) ) {
-		if ( day.length > 1 ) {
-			if (type(day[0]) == type("") ) {
-				day[0].toLowerCase().substr(0,3);
-				day[1].toLowerCase().substr(0,3);
-			}
-			for ( var v in day) {
-				day[v] = day[v] < 0 ? 0 : day[v];
-				day[v] = day[v] > 6 ? 6 : day[v];
-			}
-			if (day[0] > day[1]) {
-				day[0] += day[1];
-				day[1] = day[0] - day[1];
-				day[0] = day[0] - day[1];
-			}
-		} else {
-			log.warn("Too few agruments supplied");
-			day = [0,6];
-		}
-	} else {
-		log.warn("The day range isn't an array time, ignoring arguments and using default values");
-		day = [0,6]; // sun to sat
-	}
-	this.default_period["day"] = day;
+    // check for an array or undefined data type.  Anything else gets
+    // a warning message and the default values applied.
+    var day = this.default_period["day"];
+
+    if ( getType(day) !== getType([]) ) {
+        throw "Expected array type for argument day but got " + getType(day) + " instead." ;
+    }
+
+    try {
+        day[0] = days[day[0].substr(0,3).toLowerCase()];
+    } catch (err) {
+        log.warn("Minimum day isn't a valid name, trying as a number or else use the default value of 1.");
+        day[0] = getType(day[0]) === getType(0) ? day[0] : 1;
+    }
+    try {
+        day[1] = days[day[1].substr(0,3).toLowerCase()];
+    } catch (err) {
+        log.warn("Maximum day isn't a valid name, trying as a number or else use the default value of 1.");
+        day[1] = getType(day[1]) === getType(1) ? day[1] : 7;
+    }
+    // This isn't overly logic ...
+    //~ day[0] = day[0] < 1 ? 1 : day[0];
+    //~ day[1] = day[1] > 7 ? 7 : day[1];
+    //~ log.debug("After upper lower limit: " + day);
+//~
+    //~ if (day[0] > day[1]) {
+        //~ day[0] += day[1];
+        //~ day[1] = day[0] - day[1];
+        //~ day[0] = day[0] - day[1];
+    //~ }
+    //~ log.debug("After upper lower switch: " + day);
+
+    this.default_period["day"] = day;
 };
 
 
-console.log( new Period( { execute:false, time:["00:00:00","11:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } ).toString()  );
-console.log(new Period().toString());
-
+var period1 = new Period( { execute:false, time:["00:00:00","11:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } );
+var period2 = new Period({day:["Monday","Friday"]});
+var period3 = new Period({day:["ff",4]});
+var period4 = new Period({day:1});
+log.debug(period2.toString());
+log.debug(period3.toString());
+log.debug(period4.toString());
 
 now = new Date();
 msPerLeapYear = 126230400000;
