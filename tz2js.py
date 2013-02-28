@@ -320,15 +320,19 @@ class TimeZone(TimeZoneBase):
     def setName(self, name):
         """
         Expected format as 'area/location'. e.g. 'Atlantic/Canary'
+
+        All zones are converted to lower case to simplify key lookups.
         """
 
         if name.find("/") == -1:
             logging.debug("No slash in location '%s'"%name)
-            self.area = name
+            self.area = name.lower()
             self.location = None
         else:
             logging.debug("Split on first slash for %s"%name)
             self.area, self.location = name.split("/", 1)
+            self.area = self.area.lower()
+            self.location = self.location.lower()
 
 
     def getName(self):
@@ -463,7 +467,8 @@ def parseZoneFile():
 
         # The only information required are Zone names.  They're split
         # into Area and Location.
-        area, location = rec[2].split("/",1)
+        area, location = rec[2].lower().split("/",1)
+
         if not tmp_zones.has_key(area):
             tmp_zones[area] = {}
         tmp_zones[area][location] = []
@@ -531,7 +536,8 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                     tmp.pop(0) # Throw away the "Zone" keyword.
 
                     # Some lines don't explicitly have the zone's location so it's set here.
-                    tmp_location = tmp[0]
+                    # Location is also forced to lower case to simplfy referencing zone's keys.
+                    tmp_location = tmp[0].lower()
                     logging.debug("parseRuleZone: Got location as = %s" % ( tmp_location ) )
                 else:
                     raise ValueError("Zone doesn't match expected format %s" % line)
@@ -588,12 +594,13 @@ def parseRuleZoneFile(filename, zones={}, rules={}):
                 tmp.pop(0) # discard "Link" field.
 
                 # Link  Europe/Rome Europe/Vatican  (Link SOURCE TARGET)
-                src = tmp[0].split("/",1)
+                # Force to lower case to simply zone's key references.
+                src = tmp[0].lower().split("/",1)
                 if len(src) == 1:
                     src.append(None)
                 src_area, src_location = src
 
-                tgt = tmp[1].split("/",1)
+                tgt = tmp[1].lower().split("/",1)
                 if len(tgt) == 1:
                     tgt.append(None)
                 tgt_area, tgt_location = tgt

@@ -80,7 +80,7 @@ Object.prototype.getType = function(){
  * Returns an array with the split .
  *
 */
-String.prototype.splitOnFirst = function splitOnFirst(splitee, split_char) {
+function splitOnFirst(splitee, split_char) {
     pos = splitee.indexOf(split_char);
     if ( pos == -1 ) {
         return splitee;
@@ -132,11 +132,11 @@ function betweenRange(lower, upper)
 function Period(kwargs){
     this.default_period = {
         execute: false,
-        time: undefined,
-        day: [0,6],
-        dom: [1,31],
-        month: [0,11],
-        week: [1,52],
+        time: [ [0, 0, 0, 0], [ 23, 59, 59, 999] ],
+        day: [0, 6],
+        dom: [1, 31],
+        month: [0, 11],
+        week: [1, 52],
         year: undefined,
         tz: "europe/paris"
     };
@@ -147,8 +147,13 @@ function Period(kwargs){
         this.default_period[k] = kwargs[k];
     }
     // Apply logic to supplied agruments
-    this.parseDay();
+    this.parseTimeZone();
+    this.parseYear();
+    this.parseWeek();
+    this.parseDayOfMonth();
     this.parseMonth();
+    this.parseDay();
+    this.parseTime();
 }
 Period.prototype.toString = function toString() {
     s = "";
@@ -156,20 +161,42 @@ Period.prototype.toString = function toString() {
         s += "  " + k +": " + this.default_period[k] ;
     }
     return s;
-};
-Period.prototype.parseTime = function parseTime(t) {
-    /*
-     * Accepts a single string, single integer, list string, list integer.
-     * Returns list of min/max integer.
-     */
-    min = [  0,  0,  0,   0];
-    max = [ 23, 59, 59, 999];
-    if (t !== undefined) {
-        // to do ... parse t as either a single string, a string encoded time, or a list time.
-        // if a single string / list time is supplied, it's assumed to be the minimum time.
-    }
-    this.time = [ min , max ];
-};
+}
+Period.prototype.parseTimeZone = function paseTimeZone() {
+    var tz = this.default_period["tz"];
+    log.debug(splitOnFirst(tz, "/"));
+    tz = splitOnFirst(tz, "/");
+    tz = zones[tz[0]][tz[1]];
+    this.default_period["tz"] = tz;
+}
+Period.prototype.parseYear = function parseYear() {
+    var year = this.default_period["year"];
+
+    log.info("To do: parse this " + year );
+
+    this.default_period["year"] = year;
+}
+Period.prototype.parseWeek = function parseWeek() {
+    var week = this.default_period["week"];
+
+    log.info("To do: parse this " + week );
+
+    this.default_period["week"] = week;
+}
+/*
+ * Period method parseTime
+ * Brief: Accept an array containing two elements of either type array or string.
+ * A element array may contain between 1 and 4 elements, a string may be of the
+ * format "[h]h[:[m]m][:[s]s][:[t][t]t]" h=hour, m=minute, s=second, t=millisecond.
+ * Returns list of min/max integer.
+ */
+Period.prototype.parseTime = function parseTime() {
+    var time = this.default_period["time"];
+
+    log.info("To do: parse this " + time );
+
+    this.default_period["time"] = time;
+}
 /*
  * Period method parseDay
  * Brief: Takes a list and ensures the resulting internal
@@ -301,12 +328,41 @@ Period.prototype._validateMonth = function _validateMonth(month) {
     }
 
 }
+Period.prototype.parseDayOfMonth = function parseDayOfMonth() {
+    var dom = this.default_period["dom"];
+    log.debug("got:"+dom);
+    // The argument is required to be an array, with a start/stop day of month.
+    if ( getType(dom) !== getType([]) ) {
+        throw "Expected array type for argument day of month but got " + getType(dom) + " instead." ;
+    }
+    if ( dom.length != 2 ) {
+        throw "Expected 2 agruments for day of month but got " + dom.length;
+    }
+
+    dom[0] = this._validateDayOfMonth(dom[0]);
+    dom[1] = this._validateDayOfMonth(dom[1]);
+
+    // Sanity check the day range limits.
+    if ( dom[0] > dom[1] ) {
+        throw "[" + dom + "] isn't a valid day of the month range, the first element must be smaller than the second.";
+    }
+    this.default_period["dom"] = dom;
+}
+Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
+    try {
+        dom = parseInt(dom);
+        if (! ( dom >= 1 && dom <= 31 ) ) {
+            throw dom + " isn't a valid day of the month.";
+        }
+    } catch (err) {
+        throw err;
+    }
+    return dom;
+}
 
 
-
-
-var period1 = new Period( { execute:false, time:["00:00:00","11:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } );
-
+var period1 = new Period( );
+log.info( period1.toString() );
 
 now = new Date();
 msPerLeapYear = 126230400000;
