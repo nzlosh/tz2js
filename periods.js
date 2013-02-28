@@ -1,12 +1,11 @@
 // Check if a period is within a given range.
 /* EXAMPLES
-   between 9am - 10am (range between time)
+   between 9am - 10pm (range between time)
    Only Mondays (range between weekdays)
    1st Tuesday of each month ( repeat monthly,daily, hourly, weekly, fortnightly)
    1st Tuesday of each week ( repeat weekly, fortnightly )
    even weeks, odd weeks, modular x weeks  (modular calculation
    2nd & 3rd Wednesday between June and August (repeat between ranges)
-
 
 ---- Date / Time / Timezone
 
@@ -17,6 +16,12 @@ Resource references:
 * http://howtonode.org/prototypical-inheritance
 
 */
+
+
+// Global variables.
+days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
+months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11};
+
 
 /*
  * A logging object inspired by the Python's logger class.
@@ -52,18 +57,38 @@ log = new Log(30);
 
 
 
-// This is http://tech.karbassi.com/2009/12/18/object-type-in-javascript/
+// This is taken from http://tech.karbassi.com/2009/12/18/object-type-in-javascript/
 function getType(obj){
     if (obj === undefined) { return 'undefined'; }
     if (obj === null) { return 'null'; }
     return Object.prototype.toString.call(obj).split(' ').pop().split(']').shift().toLowerCase();
 }
 
-/*
+/* The prototype method isn't used because it interfares.
 Object.prototype.getType = function(){
     return Object.prototype.toString.call(this).split(' ').pop().split(']').shift().toLowerCase();
 };
 */
+
+
+
+/*
+ * "Split First" splits a string on the first occurrence
+ * of the given character.
+ *
+ * Returns the string argument if no occurrence is found,
+ * Returns an array with the split .
+ *
+*/
+String.prototype.splitOnFirst = function splitOnFirst(splitee, split_char) {
+    pos = splitee.indexOf(split_char);
+    if ( pos == -1 ) {
+        return splitee;
+    }
+    return [splitee.substr(0, pos), splitee.substr(pos+1)];
+}
+
+
 
 
 
@@ -100,24 +125,6 @@ function betweenRange(lower, upper)
 }
 
 
-function RangeRule(r)
-{
-
-    if ( r.length < 3 )
-    {
-        htmlLine("Error, insufficient information to check range.");
-        return false;
-    }
-
-    // extract time with /^(\d\d?):?(\d{0,2}):?(\d{0,2})/;
-    // extract day of the week or month of the year with .toLowerCase().substr(0,3);
-
-// [ false, ["00:00:01", "[+/]23:59:59","00:00:01"], ["monday","friday"], ["jan","dec"], "europe/paris" ]);
-}
-
-days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
-months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11};
-
 /*
  * Period accepts a key value pair structure to over-ride it's default parameters.
  * The parameters are then used to determine if the current time is with the defined period.
@@ -126,9 +133,9 @@ function Period(kwargs){
     this.default_period = {
         execute: false,
         time: undefined,
-        day: [1,7],
+        day: [0,6],
         dom: [1,31],
-        month: [1,12],
+        month: [0,11],
         week: [1,52],
         year: undefined,
         tz: "europe/paris"
@@ -136,11 +143,12 @@ function Period(kwargs){
 
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
+        log.debug(k + " : " + this.default_period[k]);
         this.default_period[k] = kwargs[k];
-        log.debug(this.default_period[k]);
     }
     // Apply logic to supplied agruments
     this.parseDay();
+    this.parseMonth();
 }
 Period.prototype.toString = function toString() {
     s = "";
@@ -164,60 +172,141 @@ Period.prototype.parseTime = function parseTime(t) {
 };
 /*
  * Period method parseDay
- * Brief: this method takes a list and ensures the resulting internal
- * variable is updated with an integer based representation of the period's
- * range.
+ * Brief: Takes a list and ensures the resulting internal
+ * variable is updated with an integer representation of the day.
+ *
  * @day - a key present in the default period variable.  It is expected
- * to hold on of the following: a list with two string elements or two
+ * to hold on of the following: an array with two string elements or two
  * integer elements, or an undefined value (this indicates a default value is to be used.)
+ *
  * Return: No result is explicitly returned, however the internal state of the
  * Period object is updated with the calculated day range.
-*/
+ */
 Period.prototype.parseDay = function parseDay()
 {
-    // check for an array or undefined data type.  Anything else gets
-    // a warning message and the default values applied.
     var day = this.default_period["day"];
-
+    // The argument is required to be an array, with a start/stop day.
     if ( getType(day) !== getType([]) ) {
         throw "Expected array type for argument day but got " + getType(day) + " instead." ;
     }
-
-    try {
-        day[0] = days[day[0].substr(0,3).toLowerCase()];
-    } catch (err) {
-        log.warn("Minimum day isn't a valid name, trying as a number or else use the default value of 1.");
-        day[0] = getType(day[0]) === getType(0) ? day[0] : 1;
+    if ( day.length != 2 ) {
+        throw "Expected 2 agruments for day but got " + day.length;
     }
-    try {
-        day[1] = days[day[1].substr(0,3).toLowerCase()];
-    } catch (err) {
-        log.warn("Maximum day isn't a valid name, trying as a number or else use the default value of 1.");
-        day[1] = getType(day[1]) === getType(1) ? day[1] : 7;
-    }
-    // This isn't overly logic ...
-    //~ day[0] = day[0] < 1 ? 1 : day[0];
-    //~ day[1] = day[1] > 7 ? 7 : day[1];
-    //~ log.debug("After upper lower limit: " + day);
-//~
-    //~ if (day[0] > day[1]) {
-        //~ day[0] += day[1];
-        //~ day[1] = day[0] - day[1];
-        //~ day[0] = day[0] - day[1];
-    //~ }
-    //~ log.debug("After upper lower switch: " + day);
+    day[0] = this._validateDay(day[0]);
+    day[1] = this._validateDay(day[1]);
 
+    // Sanity check the day range limits.
+    if ( day[0] > day[1] ) {
+        throw "[" + day + "] isn't a valid day range, the first element must be smaller than the second.";
+    }
     this.default_period["day"] = day;
-};
+}
+Period.prototype._validateDay = function _validateDay(day) {
+
+    try {
+        // Is argument a number?
+        if ( isNaN(parseInt(day)) ) {
+            throw "Not a number";
+        }
+        day = parseInt(day);
+
+    } catch (err) {
+        log.warn("Can't convert " + day +" to integer: " + err);
+        try {
+            // Store keys in an array so they can be compared against the day string.
+            var keys = Object.keys(days);
+
+            for ( var i = 0; i < keys.length; i++ ) {
+                if ( day.substr(0,3).toLowerCase() == keys[i] ) {
+                    log.debug("Matched : " + day.substr(0,3).toLowerCase() + " and " + days[keys[i]]);
+                    day = days[keys[i]];
+                    break;
+                }
+            }
+            // If day is a string, we failed to match a valid weekday name.
+            if ( isNaN(day) ) {
+                throw (day + " isn't a valid name of week.");
+            }
+        } catch (err) {
+            // Give up, the argument isn't a valid weekday name or a valid integer value.
+            throw ("An element in the day argument is invalid: " + err );
+        }
+    }
+
+    // Assert the day is within the boundaries of 0-6
+    if ( day >= 0 && day <= 6 ) {
+        return day;
+    } else {
+        throw day + " isn't a valid value for day argument.";
+    }
+
+}
+Period.prototype.parseMonth = function parseMonth()
+{
+    var month = this.default_period["month"];
+    // The argument is required to be an array, with a start/stop day.
+    if ( getType(month) !== getType([]) ) {
+        throw "Expected array type for argument month but got " + getType(month) + " instead." ;
+    }
+    if ( month.length != 2 ) {
+        throw "Expected 2 agruments for month but got " + month.length;
+    }
+    month[0] = this._validateMonth(month[0]);
+    month[1] = this._validateMonth(month[1]);
+
+    // Sanity check the day range limits.
+    if ( month[0] > month[1] ) {
+        throw "[" + month + "] isn't a valid month range, the first element must be smaller than the second.";
+    }
+
+    this.default_period["month"] = month;
+}
+Period.prototype._validateMonth = function _validateMonth(month) {
+
+    try {
+        // Is argument a number?
+        if ( isNaN(parseInt(month)) ) {
+            throw "Not a number";
+        }
+        month = parseInt(month);
+
+    } catch (err) {
+        log.warn("Can't convert " + month + " to integer: " + err);
+        try {
+            // Store keys in an array so they can be compared against the day string.
+            var keys = Object.keys(months);
+
+            for ( var i = 0; i < keys.length; i++ ) {
+                if ( month.substr(0,3).toLowerCase() == keys[i] ) {
+                    log.debug("Matched : " + month.substr(0,3).toLowerCase() + " and " + months[keys[i]]);
+                    month = months[keys[i]];
+                    break;
+                }
+            }
+            // If month is a string, we failed to match a valid month name.
+            if ( isNaN(month) ) {
+                throw (month + " isn't a valid month name .");
+            }
+        } catch (err) {
+            // Give up, the argument isn't a valid month name or a valid integer value.
+            throw ("An element in the month argument is invalid: " + err );
+        }
+    }
+
+    // Assert the month is within the boundaries of 0-11
+    if ( month >= 0 && month <= 11 ) {
+        return month;
+    } else {
+        throw month + " isn't a valid value for month argument.";
+    }
+
+}
+
+
 
 
 var period1 = new Period( { execute:false, time:["00:00:00","11:59:59"], day:["mon","fri"], dom: [1,31],  month:["jan","dec"], week: [1,52], year:[2013,2014],  tz:"europe/paris" } );
-var period2 = new Period({day:["Monday","Friday"]});
-var period3 = new Period({day:["ff",4]});
-var period4 = new Period({day:1});
-log.debug(period2.toString());
-log.debug(period3.toString());
-log.debug(period4.toString());
+
 
 now = new Date();
 msPerLeapYear = 126230400000;
@@ -296,21 +385,7 @@ function tzDate(date, tz, dst) {
 }
 */
 
-/*
- * "Split First" splits a string on the first occurrence
- * of the given character.
- *
- * Returns the string argument if no occurrence is found,
- * Returns an array with the split .
- *
-*/
-function splitfirst(splitee, split_char) {
-    pos = splitee.indexOf(split_char);
-    if ( pos == -1 ) {
-        return splitee;
-    }
-    return [splitee.substr(0, pos), splitee.substr(pos+1)];
-}
+
 
 /* An example of using splitfirst
 [area,loc] = splitfirst("America/Argentina/Buenos_Aires", "/");
