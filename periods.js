@@ -137,7 +137,7 @@ function Period(kwargs){
         dom: [1, 31],
         month: [0, 11],
         week: [1, 52],
-        year: undefined,
+        year: [2010, 2050],
         tz: "europe/paris"
     };
 
@@ -174,12 +174,45 @@ Period.prototype.parseYear = function parseYear() {
 
     log.info("To do: parse this " + year );
 
+    // The argument is required to be an array, with a start/stop year.
+    if ( getType(year) !== getType([]) ) {
+        throw "Expected array type for argument year but got " + getType(year) + " instead." ;
+    }
+    if ( year.length != 2 ) {
+        throw "Expected 2 agruments for year but got " + year.length;
+    }
+
+    year[0] = parseInt(year[0]);
+    year[1] = parseInt(year[1]);
+
+    // Sanity check the year range limits.
+    if ( year[0] > year[1] ) {
+        throw "[" + year + "] isn't a valid year range, the first element must be smaller than the second.";
+    }
+
     this.default_period["year"] = year;
 }
 Period.prototype.parseWeek = function parseWeek() {
     var week = this.default_period["week"];
 
+
     log.info("To do: parse this " + week );
+
+    // The argument is required to be an array, with a start/stop day.
+    if ( getType(week) !== getType([]) ) {
+        throw "Expected array type for argument week but got " + getType(week) + " instead." ;
+    }
+    if ( week.length != 2 ) {
+        throw "Expected 2 agruments for week but got " + week.length;
+    }
+
+    week[0] = parseInt(week[0]);
+    week[1] = parseInt(week[1]);
+
+    // Sanity check the week range limits.
+    if ( week[0] > week[1] ) {
+        throw "[" + week + "] isn't a valid week range, the first element must be smaller than the second.";
+    }
 
     this.default_period["week"] = week;
 }
@@ -255,7 +288,7 @@ Period.prototype._validateDay = function _validateDay(day) {
                 throw (day + " isn't a valid name of week.");
             }
         } catch (err) {
-            // Give up, the argument isn't a valid weekday name or a valid integer value.
+            // Give up, the argument isn't a valid weekday name or an integer.
             throw ("An element in the day argument is invalid: " + err );
         }
     }
@@ -315,7 +348,7 @@ Period.prototype._validateMonth = function _validateMonth(month) {
                 throw (month + " isn't a valid month name .");
             }
         } catch (err) {
-            // Give up, the argument isn't a valid month name or a valid integer value.
+            // Give up, the argument isn't a valid month name or an integer.
             throw ("An element in the month argument is invalid: " + err );
         }
     }
