@@ -11,6 +11,16 @@
  * Only Mondays (range between weekdays)
  * new Period({dow: ["mon","mon"]});
  *
+ * Execution Policy
+ * ================
+ * The execution policy variable is a catch all execution flag.  In the event no
+ * Periods are defined or matched, the execution policy variable is used
+ * as the return result.
+ *
+ * The execution policy is used when calculating if a Period is an execution
+ * or non execution period, specifically when no execution argument is supplied
+ * to the Period object.
+ *
  *
  * Currently unimplemented ranges
  * ------------------------------
@@ -90,8 +100,7 @@ function getType(obj){
 }
 /* The prototype method is part of the implementation but it causes undesirable
  * effects when integrated into the Zone and Rule objects.
-*/
-/*
+
 Object.prototype.getType = function(){
     return Object.prototype.toString.call(this).split(' ').pop().split(']').shift().toLowerCase();
 };
@@ -113,14 +122,11 @@ Object.prototype.getType = function(){
 */
 function splitOnFirst(split_string, split_char) {
     pos = split_string.indexOf(split_char);
-    if ( pos == -1 ) {
-        return split_string;
-    }
-    return [split_string.substr(0, pos), split_string.substr(pos+1)];
+    return pos == -1 ? split_string : [split_string.substr(0, pos), split_string.substr(pos+1)];
 }
 
 
-
+//**********************************************************************
 /* Period
  * ======
  *
@@ -135,7 +141,7 @@ function splitOnFirst(split_string, split_char) {
  */
 function Period(kwargs){
     this.default_period = {
-        execute: false,
+        execute: undefined,
         time: [ [0, 0, 0, 0], [ 23, 59, 59, 999] ],
         day: [0, 6],
         dom: [1, 31],
@@ -151,6 +157,7 @@ function Period(kwargs){
         this.default_period[k] = kwargs[k];
     }
     // Call functions to process period arguments.
+    this.parseExecute();
     this.parseTimeZone();
     this.parseYear();
     this.parseWeek();
@@ -159,6 +166,7 @@ function Period(kwargs){
     this.parseDay();
     this.parseTime();
 };
+//**********************************************************************
 Period.prototype.toString = function toString() {
     s = "";
     for ( var k in this.default_period ) {
@@ -166,15 +174,26 @@ Period.prototype.toString = function toString() {
     }
     return s;
 }
-/* insideBoundaries
- * ================
+//**********************************************************************
+/* checkDate
+ * =========
  * Given a date/time with timezone extensions, determine if it falls within
  * the boundaries of the Period's constraints.
 */
-function insideBoundaries(check_date)
+function checkDate(check_date)
 {
-    throw "insideBoundaries Unimplemented";
+    throw "checkDate Unimplemented";
 }
+//**********************************************************************
+Period.prototype.parseExecute = function parseExecute() {
+    var execute_period = this.default_period["execute"];
+    log.debug('Execute period is ' + execute_period + " and default policy is " + execute_policy);
+    if ( execute_period == undefined ) {
+        execute_period = !execute_policy;
+    }
+    this.default_period["execute"] = execute_period;
+}
+//**********************************************************************
 Period.prototype.parseTimeZone = function paseTimeZone() {
     var tz = this.default_period["tz"];
     log.debug(splitOnFirst(tz, "/"));
@@ -182,6 +201,7 @@ Period.prototype.parseTimeZone = function paseTimeZone() {
     tz = zones[tz[0]][tz[1]];
     this.default_period["tz"] = tz;
 }
+//**********************************************************************
 Period.prototype.parseYear = function parseYear() {
     var year = this.default_period["year"];
 
@@ -205,6 +225,7 @@ Period.prototype.parseYear = function parseYear() {
 
     this.default_period["year"] = year;
 }
+//**********************************************************************
 Period.prototype.parseWeek = function parseWeek() {
     var week = this.default_period["week"];
 
@@ -229,6 +250,7 @@ Period.prototype.parseWeek = function parseWeek() {
 
     this.default_period["week"] = week;
 }
+//**********************************************************************
 /* Period method parseTime
  * Brief: Accept an array containing two elements of either type array or string.
  * A element array may contain between 1 and 4 elements, a string may be of the
@@ -238,10 +260,16 @@ Period.prototype.parseWeek = function parseWeek() {
 Period.prototype.parseTime = function parseTime() {
     var time = this.default_period["time"];
 
+    // argument is an array?
+    // if array, it's elements must be 3 or less and of type integer or (maybe string integer)
+    // argument is string?
+    // if string it's format is described above.
+    // if neither array or string, throw an exception.
     log.info("To do: parse this " + time );
 
     this.default_period["time"] = time;
 }
+//**********************************************************************
 /* Period method parseDay
  * Brief: Takes a list and ensures the resulting internal
  * variable is updated with an integer representation of the day.
@@ -272,6 +300,7 @@ Period.prototype.parseDay = function parseDay()
     }
     this.default_period["day"] = day;
 }
+//**********************************************************************
 Period.prototype._validateDay = function _validateDay(day) {
 
     try {
@@ -312,6 +341,7 @@ Period.prototype._validateDay = function _validateDay(day) {
     }
 
 }
+//**********************************************************************
 Period.prototype.parseMonth = function parseMonth()
 {
     var month = this.default_period["month"];
@@ -332,6 +362,7 @@ Period.prototype.parseMonth = function parseMonth()
 
     this.default_period["month"] = month;
 }
+//**********************************************************************
 Period.prototype._validateMonth = function _validateMonth(month) {
 
     try {
@@ -372,6 +403,7 @@ Period.prototype._validateMonth = function _validateMonth(month) {
     }
 
 }
+//**********************************************************************
 Period.prototype.parseDayOfMonth = function parseDayOfMonth() {
     var dom = this.default_period["dom"];
     log.debug("got:"+dom);
@@ -392,6 +424,7 @@ Period.prototype.parseDayOfMonth = function parseDayOfMonth() {
     }
     this.default_period["dom"] = dom;
 }
+//**********************************************************************
 Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
     try {
         dom = parseInt(dom);
@@ -411,9 +444,9 @@ function tzDate(date, tz, dst) {
     // these variables aren't all require but they're included in a previsory capacity.
     this.msPerLeapYear = 126230400000;
     this.msPerYear = 31536000000;
-    this.msPerDay = 86400000;
+    this.msPerDay  = 86400000;
     this.msPerHour = 3600000;
-    this.msPerMin = 60000;
+    this.msPerMin  = 60000;
     /* Start to work on the calculations for converting epoch time to Y/M/D h:m:s:ms time. */
     this.msToday = this.now.getTime() % this.msPerDay;
     this.msThisHour = this.msToday % this.msPerHour;
@@ -424,8 +457,8 @@ function tzDate(date, tz, dst) {
     this.millisecond = this.msThisMinute % 1000;
 
     // millisecond based calculations *********
-    this.msPerWeek = 7 * msPerDay;
-    this.msPerLeapYear = msPerDay * ( 4 * 365 + 1);
+    this.msPerWeek = 7 * this.msPerDay;
+    this.msPerLeapYear = this.msPerDay * ( 4 * 365 + 1);
 
     // day based calculations *********
     this.msOfYear = this.now.getTime() % this.msPerYear - ( this.totalLeptDays * this.msPerDay ) ;
@@ -433,31 +466,31 @@ function tzDate(date, tz, dst) {
     this.Year = ( this.msOfYear - this.msToday ) / this.msPerDay;
     this.dayOfYear = (this.msOfYear - this.msToday)  / this.msPerDay;
 
-    //this.leapYearsSinceEpoch();
+    // Calculate leap year.
+    this.leapYearsSinceEpoch();
 
-
-    h = "<tr><th>day 0</th><th>" + now + "</th></tr>";
-    l1 = "<tr><td>ms per day:</td><td>" + this.msPerDay + "</td></tr>";
-    l2 = "<tr><td>ms per week:</td><td>" +  this.msPerWeek + "</td></tr>";
-    l3 = "<tr><td>ms per leap year:</td><td>" +  this.msPerLeapYear + "</td></tr>";
-    l4 = "<tr><td>leap years:</td><td>" + this.totalLeptDays  + "</td></tr>";
-    l5 = "<tr><td>ms of days of year:</td><td>" + this.msOfYear  + "</td></tr>";
-    l6 = "<tr><td>ms today:</td><td>" + this.msToday  + "</td></tr>";
-    l7 = "<tr><td>day of year:</td><td>" + this.dayOfYear  + "</td></tr>";
-    l8 = "<tr><td>Year:</td><td>" + this.Year  + "</td></tr>";
-
-    log.debug( h + l1 + l2 + l3 + l4 + l5 + l6 + l7 + l8);
-};
+}
+//**********************************************************************
 tzDate.prototype.toString = function toString() {
     // to do : implement this to include tz offset, dst and abbreviation.
-    return this.date.toString();
+    return  "Now: " + this.now +
+            "ms per day: " + this.msPerDay +
+            "ms per week: " +  this.msPerWeek +
+            "ms per leap year: " +  this.msPerLeapYear +
+            "leap years: " + this.totalLeptDays  +
+            "ms of days of year: " + this.msOfYear  +
+            "ms today: " + this.msToday  +
+            "day of year: " + this.dayOfYear  +
+            "Year: " + this.Year;
 }
+//**********************************************************************
 tzDate.prototype.leapYearsSinceEpoch = function leapYearsSinceEpoch() {
     // Add 2 years to calculate 1st leap 1972
     s = this.now.getTime();
     this.totalLeptDays = Math.floor( (this.msPerYear * 2  + s) / this.msPerLeapYear);
     return true;
 }
+//**********************************************************************
 tzDate.prototype.tz = function tz(tz) {
     /* epoch timestamps are always in UTC.
      * To calculate if an epoche is within
@@ -488,6 +521,7 @@ tzDate.prototype.tz = function tz(tz) {
     log.debug('set tz:' + tz);
     return true;
 }
+//**********************************************************************
 tzDate.prototype.getTzTime = function getTzTime(){
     return this.getTime() + this.tz;
 }
@@ -544,7 +578,7 @@ tzDate.prototype.getTzTime = function getTzTime(){
 
 
 
-var period1 = new Period( );
+var period1 = new Period( {time: [4,"6:56:30"]} );
 log.info( period1.toString() );
 
 /* An example of using splitfirst
@@ -553,19 +587,7 @@ tzDate(zones[area][loc][0]);
  */
 for ( var area in zones ) {
     for ( var loc in zones[area]) {
-        tzDate(zones[area][loc][0]);
+        new tzDate(zones[area][loc][0]);
     }
 }
 
-/* FROM PDA */
-
-/*get utc time in ms add timezone offset get dateTime*/
-function dayToNumber(d) {
-    var days = [ "sun", "mon", "tue", "thu", "fri", "sat" ];
-    for ( var i = 0; i < days.length; i+=1) {
-        if (days[i] == d.toLowerCase() ) {
-            return i;
-        }
-    }
-    return -1;
-}
