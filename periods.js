@@ -120,9 +120,9 @@ Object.prototype.getType = function(){
  *   the left hand side and right hand side strings is returned.
  *
 */
-function splitOnFirst(split_string, split_char) {
-    pos = split_string.indexOf(split_char);
-    return pos == -1 ? split_string : [split_string.substr(0, pos), split_string.substr(pos+1)];
+String.prototype.splitOnFirst = function splitOnFirst(split_char) {
+    pos = this.indexOf(split_char);
+    return pos == -1 ? this : [this.substr(0, pos), this.substr(pos+1)];
 }
 
 
@@ -142,12 +142,12 @@ function splitOnFirst(split_string, split_char) {
 function Period(kwargs){
     this.default_period = {
         execute: undefined,
-        time: [ [0, 0, 0, 0], [ 23, 59, 59, 999] ],
-        day: [0, 6],
-        dom: [1, 31],
+        time:  [ [0, 0, 0, 0], [ 23, 59, 59, 999] ],
+        day:   [0, 6],
+        dom:   [1, 31],
         month: [0, 11],
-        week: [1, 52],
-        year: [2010, 2050],
+        week:  [1, 52],
+        year:  [2010, 2050],
         tz: "europe/paris"
     };
 
@@ -180,7 +180,7 @@ Period.prototype.toString = function toString() {
  * Given a date/time with timezone extensions, determine if it falls within
  * the boundaries of the Period's constraints.
 */
-function checkDate(check_date)
+Period.prototype.checkDate = function checkDate(check_date)
 {
     throw "checkDate Unimplemented";
 }
@@ -196,8 +196,8 @@ Period.prototype.parseExecute = function parseExecute() {
 //**********************************************************************
 Period.prototype.parseTimeZone = function paseTimeZone() {
     var tz = this.default_period["tz"];
-    log.debug(splitOnFirst(tz, "/"));
-    tz = splitOnFirst(tz, "/");
+    log.debug(tz.splitOnFirst("/"));
+    tz = tz.splitOnFirst("/");
     tz = zones[tz[0]][tz[1]];
     this.default_period["tz"] = tz;
 }
@@ -251,7 +251,8 @@ Period.prototype.parseWeek = function parseWeek() {
     this.default_period["week"] = week;
 }
 //**********************************************************************
-/* Period method parseTime
+/* parseTime
+ * =========
  * Brief: Accept an array containing two elements of either type array or string.
  * A element array may contain between 1 and 4 elements, a string may be of the
  * format "[h]h[:[m]m][:[s]s][:[t][t]t]" h=hour, m=minute, s=second, t=millisecond.
@@ -260,17 +261,65 @@ Period.prototype.parseWeek = function parseWeek() {
 Period.prototype.parseTime = function parseTime() {
     var time = this.default_period["time"];
 
-    // argument is an array?
-    // if array, it's elements must be 3 or less and of type integer or (maybe string integer)
-    // argument is string?
-    // if string it's format is described above.
-    // if neither array or string, throw an exception.
     log.info("To do: parse this " + time );
+
+    var time = this.default_period["time"];
+    // The argument is required to be an array, with a start/stop day.
+    if ( getType(time) !== getType([]) ) {
+        throw "Expected array type for argument time but got " + getType(time) + " instead." ;
+    }
+    if ( time.length != 2 ) {
+        throw "Expected 2 agruments for time but got " + time.length;
+    }
+    time[0] = this._validateTime(time[0]);
+    time[1] = this._validateTime(time[1]);
+
+    // Sanity check the day range limits.
+    if ( time[0] > time[1] ) {
+        throw "[" + day + "] isn't a valid day range, the first element must be smaller than the second.";
+    }
 
     this.default_period["time"] = time;
 }
 //**********************************************************************
-/* Period method parseDay
+Period.prototype._validateTime = function _validateTime(time) {
+/*******
+ *
+ * TO DO - CONTINUE WORK HERE!
+ *
+ */
+    try {
+    // if array, it's elements must be 3 or less and of type integer or (maybe string integer)
+        if ( isNaN(parseInt(time)) ) {
+            throw "Not a number";
+        }
+        time = parseInt(time);
+
+    } catch (err) {
+        log.warn("Can't convert " + time +" to integer: " + err);
+        try {
+    // argument is string?
+    // if string it's format is described above.
+    // if neither array or string, throw an exception.
+            if ( isNaN(time) ) {
+                throw (time + " isn't a valid time format hh:mm:ss.");
+            }
+        } catch (err) {
+            // Give up, the argument isn't a valid time.
+            throw ("An element in the time argument is invalid: " + err );
+        }
+    }
+
+    // Assert the time is within the boundaries of 0:0:0-23:59:59
+    if ( day >= 0 && day <= 6 ) {
+        return day;
+    } else {
+        throw day + " isn't a valid value for day argument.";
+    }
+}
+//**********************************************************************
+/* parseDay
+ * ========
  * Brief: Takes a list and ensures the resulting internal
  * variable is updated with an integer representation of the day.
  *
@@ -339,7 +388,6 @@ Period.prototype._validateDay = function _validateDay(day) {
     } else {
         throw day + " isn't a valid value for day argument.";
     }
-
 }
 //**********************************************************************
 Period.prototype.parseMonth = function parseMonth()
@@ -486,8 +534,7 @@ tzDate.prototype.toString = function toString() {
 //**********************************************************************
 tzDate.prototype.leapYearsSinceEpoch = function leapYearsSinceEpoch() {
     // Add 2 years to calculate 1st leap 1972
-    s = this.now.getTime();
-    this.totalLeptDays = Math.floor( (this.msPerYear * 2  + s) / this.msPerLeapYear);
+    this.totalLeptDays = Math.floor( (this.msPerYear * 2  + this.now.getTime() ) / this.msPerLeapYear);
     return true;
 }
 //**********************************************************************
@@ -575,11 +622,18 @@ tzDate.prototype.getTzTime = function getTzTime(){
 }
 */
 
+//**********************************************************************
+/* Rule object used create the complete object */
+function Rule(r) {
 
+}
 
 
 var period1 = new Period( {time: [4,"6:56:30"]} );
 log.info( period1.toString() );
+var period2 = new Period({tz:"pacific/auckland"});
+log.info( period2.toString() );
+
 
 /* An example of using splitfirst
 [area,loc] = splitfirst("America/Argentina/Buenos_Aires", "/");
