@@ -1,4 +1,5 @@
-/* periods.js
+/**********************************************************************
+ * periods.js
  * ==========
  * Checks the current time is within a given time period based on a set
  * of criteria which determine time of day, day of week, day of month,
@@ -49,7 +50,9 @@ months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7
 execute_policy = true;      // Set the default execution policy in the event no Periods match or are defined.
 
 
-/*
+/**
+ * Log
+ * ===
  * A logging object inspired by the Python's logger class.
  * Logs to null, console or web page.
  * Levels are determined by an integer value.  The higher the value, the
@@ -87,7 +90,7 @@ Log.prototype.info = function info(msg) {
 log = new Log(30);
 
 
-/*
+/**********************************************************************
  * getType
  * =======
  * This is taken from http://tech.karbassi.com/2009/12/18/object-type-in-javascript/ and
@@ -106,7 +109,7 @@ Object.prototype.getType = function(){
 };
 */
 
-/*
+/**********************************************************************
  * splitOnFirst
  * ============
  * Split a string on the first occurrence of the given character.
@@ -126,8 +129,8 @@ String.prototype.splitOnFirst = function splitOnFirst(split_char) {
 }
 
 
-//**********************************************************************
-/* Period
+/**********************************************************************
+ * Period
  * ======
  *
  * Period accepts a key value pair structure to override it's default parameters.
@@ -261,12 +264,11 @@ Period.prototype.parseWeek = function parseWeek() {
 Period.prototype.parseTime = function parseTime() {
     var time = this.default_period["time"];
 
-    log.info("To do: parse this " + time );
+    log.debug("Got time range " + time );
 
-    var time = this.default_period["time"];
     // The argument is required to be an array, with a start/stop day.
     if ( getType(time) !== getType([]) ) {
-        throw "Expected array type for argument time but got " + getType(time) + " instead." ;
+        throw "Expected array type for argument time but got " + getType(time) + " type instead." ;
     }
     if ( time.length != 2 ) {
         throw "Expected 2 agruments for time but got " + time.length;
@@ -276,49 +278,59 @@ Period.prototype.parseTime = function parseTime() {
 
     // Sanity check the day range limits.
     if ( time[0] > time[1] ) {
-        throw "[" + day + "] isn't a valid day range, the first element must be smaller than the second.";
+        throw "[" + time + "] isn't a valid time range, the first element must be smaller than the second.";
     }
 
     this.default_period["time"] = time;
 }
 //**********************************************************************
 Period.prototype._validateTime = function _validateTime(time) {
-/*******
- *
- * TO DO - CONTINUE WORK HERE!
- *
- */
+    var ms_factor=[3600000,60000,1000,1];
+    var max_limit=[23,59,59,999];
+    var time_seconds = 0;
     try {
-    // if array, it's elements must be 3 or less and of type integer or (maybe string integer)
-        if ( isNaN(parseInt(time)) ) {
-            throw "Not a number";
+        // String format is described at parseTime method.
+        if ( getType(time) === getType("") ) {
+            time = time.split(":");
         }
-        time = parseInt(time);
+        // A single integer was supplied, put it into an array.
+        if ( getType(time) === getType(1) ) {
+            time = [time];
+        }
+        // If time isn't an array by now, it's not a handled data type.
+        if ( getType(time) !== getType([]) ) {
+            throw time + " isn't a supported type for a time range.";
+        }
+        // The array's elements must be 4 or less and of type integer or (maybe string integer)
+        if (time.length > 4) {
+            throw "Too many arguments supplied in the time range [" + time + "].";
+        }
+        for ( var i = 0; i < time.length; i++ ) {
+            var time_elm = parseInt(time[i]);
+            if ( isNaN(time_elm) ) {
+                throw time[i] + " isn't a valid time value.";
+            }
+            if ( 0 <= time_elm && time_elm <= max_limit[i] ) {
+                time_seconds += time_elm * ms_factor[i];
+            } else {
+                throw time[i] + " is outside the valid range for time.";
+            }
+        }
 
     } catch (err) {
-        log.warn("Can't convert " + time +" to integer: " + err);
-        try {
-    // argument is string?
-    // if string it's format is described above.
-    // if neither array or string, throw an exception.
-            if ( isNaN(time) ) {
-                throw (time + " isn't a valid time format hh:mm:ss.");
-            }
-        } catch (err) {
-            // Give up, the argument isn't a valid time.
-            throw ("An element in the time argument is invalid: " + err );
-        }
+        // Give up, the argument isn't a valid time.
+        throw ("An element in the time argument is invalid: " + err );
     }
 
-    // Assert the time is within the boundaries of 0:0:0-23:59:59
-    if ( day >= 0 && day <= 6 ) {
-        return day;
+    // Assert the time is within the boundaries of 0:0:0:0-23:59:59:999
+    if ( time_seconds >= 0 && time_seconds <= 86399999 ) {
+        return time_seconds;
     } else {
-        throw day + " isn't a valid value for day argument.";
+        throw time + " isn't a valid value for time argument.";
     }
 }
-//**********************************************************************
-/* parseDay
+/**********************************************************************
+ * parseDay
  * ========
  * Brief: Takes a list and ensures the resulting internal
  * variable is updated with an integer representation of the day.
@@ -622,18 +634,39 @@ tzDate.prototype.getTzTime = function getTzTime(){
 }
 */
 
-//**********************************************************************
-/* Rule object used create the complete object */
+/**********************************************************************
+/* Rule
+ * ====
+ *  object used create the complete object
+*/
 function Rule(r) {
+// {"rule_type": null, "day_on": ["Sun", ">=", "8"], "save": 3600, "letters": "D", "name": "Canada", "month_in": 3, "year_to": 2050, "year_from": 2007, "time_at": [7200, null]}
+    this.rule_type = null;
+    this.day_on = null;
+    this.save = null;
+    this.letters = null;
+    this.name = null;
+    this.month_in = null;
+    this.year_to = null;
+    this.year_from = null;
+    this.time_at = null;
+}
+Rule.prototype.closestDay = function closestDay()
+{
+/// To Do: calculate the closest day give a date.
 
 }
 
-
-var period1 = new Period( {time: [4,"6:56:30"]} );
+var period1 = new Period( {time: ["4","5:56:30"]} );
 log.info( period1.toString() );
 var period2 = new Period({tz:"pacific/auckland"});
 log.info( period2.toString() );
-
+// A series of time tests
+new Period( {time: 4} );
+new Period( {time: [1,"1:57:30"]} );
+new Period( {time: ["2","2:56:30"]} );
+new Period( {time: [3,[3,56,30]]} );
+new Period( {time: [4,"5:59:30"]} );
 
 /* An example of using splitfirst
 [area,loc] = splitfirst("America/Argentina/Buenos_Aires", "/");
