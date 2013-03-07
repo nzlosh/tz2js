@@ -137,10 +137,14 @@ String.prototype.splitOnFirst = function splitOnFirst(split_char) {
  * The parameters are then used to determine if the current time is with the defined period.
  *
  * Valid keys:
- *   execute: boolean to indicate if the period is execution or non-execution.
- *   time: an array containing the start and end times for a period.
- *   day: the
- * .... to do ....
+ *   @execute: boolean to indicate if the period is execution or non-execution.
+ *   @time: a two element array containing the start and end times for a period.
+ *   @day: a two element array for the range mon=0 .. sun=6
+ *   @dom: a two element array for the range of the day of the month 0 .. 31.
+ *   @month: a two element array for the range of months jan=0 .. dec=11.
+ *   @week: a two element array for the range of weeks in the year, 0 .. 52.
+ *   @year: a two element array for the range years, anything could be valid.
+ *   @tz: a string indicating the timezone for which the times represent.
  */
 function Period(kwargs){
     this.default_period = {
@@ -177,8 +181,8 @@ Period.prototype.toString = function toString() {
     }
     return s;
 }
-//**********************************************************************
-/* checkDate
+/**********************************************************************
+* checkDate
  * =========
  * Given a date/time with timezone extensions, determine if it falls within
  * the boundaries of the Period's constraints.
@@ -187,7 +191,11 @@ Period.prototype.checkDate = function checkDate(check_date)
 {
     throw "checkDate Unimplemented";
 }
-//**********************************************************************
+/**********************************************************************
+ * parseExecute 
+ * ============
+ * 
+*/ 
 Period.prototype.parseExecute = function parseExecute() {
     var execute_period = this.default_period["execute"];
     log.debug('Execute period is ' + execute_period + " and default policy is " + execute_policy);
@@ -196,7 +204,7 @@ Period.prototype.parseExecute = function parseExecute() {
     }
     this.default_period["execute"] = execute_period;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype.parseTimeZone = function paseTimeZone() {
     var tz = this.default_period["tz"];
     log.debug(tz.splitOnFirst("/"));
@@ -204,7 +212,7 @@ Period.prototype.parseTimeZone = function paseTimeZone() {
     tz = zones[tz[0]][tz[1]];
     this.default_period["tz"] = tz;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype.parseYear = function parseYear() {
     var year = this.default_period["year"];
 
@@ -228,7 +236,7 @@ Period.prototype.parseYear = function parseYear() {
 
     this.default_period["year"] = year;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype.parseWeek = function parseWeek() {
     var week = this.default_period["week"];
 
@@ -253,14 +261,14 @@ Period.prototype.parseWeek = function parseWeek() {
 
     this.default_period["week"] = week;
 }
-//**********************************************************************
-/* parseTime
+/**********************************************************************
+ * parseTime
  * =========
  * Brief: Accept an array containing two elements of either type array or string.
  * A element array may contain between 1 and 4 elements, a string may be of the
  * format "[h]h[:[m]m][:[s]s][:[t][t]t]" h=hour, m=minute, s=second, t=millisecond.
  * Returns list of min/max integer.
- */
+*/
 Period.prototype.parseTime = function parseTime() {
     var time = this.default_period["time"];
 
@@ -335,9 +343,9 @@ Period.prototype._validateTime = function _validateTime(time) {
  * Brief: Takes a list and ensures the resulting internal
  * variable is updated with an integer representation of the day.
  *
- * @day - a key present in the default period variable.  It is expected
- * to hold on of the following: an array with two string elements or two
- * integer elements, or an undefined value (this indicates a default value is to be used.)
+ * @day: a key present in the default period variable.  It is expected
+ * to hold one of the following: an array with two string elements or two
+ * integer elements or an undefined value (this indicates a default value is to be used.)
  *
  * Return: No result is explicitly returned, however the internal state of the
  * Period object is updated with the calculated day range.
@@ -361,7 +369,7 @@ Period.prototype.parseDay = function parseDay()
     }
     this.default_period["day"] = day;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype._validateDay = function _validateDay(day) {
 
     try {
@@ -384,7 +392,7 @@ Period.prototype._validateDay = function _validateDay(day) {
                     break;
                 }
             }
-            // If day is a string, we failed to match a valid weekday name.
+            // If day is a string, no valid weekday name was matched.
             if ( isNaN(day) ) {
                 throw (day + " isn't a valid name of week.");
             }
@@ -422,7 +430,7 @@ Period.prototype.parseMonth = function parseMonth()
 
     this.default_period["month"] = month;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype._validateMonth = function _validateMonth(month) {
 
     try {
@@ -463,7 +471,7 @@ Period.prototype._validateMonth = function _validateMonth(month) {
     }
 
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype.parseDayOfMonth = function parseDayOfMonth() {
     var dom = this.default_period["dom"];
     log.debug("got:"+dom);
@@ -637,19 +645,27 @@ tzDate.prototype.getTzTime = function getTzTime(){
 /**********************************************************************
 /* Rule
  * ====
- *  object used create the complete object
+ * Creates the complete Rule object from the JSON data structure.
 */
-function Rule(r) {
+function Rule(kwargs) {
 // {"rule_type": null, "day_on": ["Sun", ">=", "8"], "save": 3600, "letters": "D", "name": "Canada", "month_in": 3, "year_to": 2050, "year_from": 2007, "time_at": [7200, null]}
-    this.rule_type = null;
-    this.day_on = null;
-    this.save = null;
-    this.letters = null;
-    this.name = null;
-    this.month_in = null;
-    this.year_to = null;
-    this.year_from = null;
-    this.time_at = null;
+    this.rule_data = {
+        rule_type: undefined,
+        day_on:  undefined,
+        save:   undefined,
+        letters:  undefined,
+        name: undefined,
+        month_in:  undefined,
+        year_to:  undefined,
+        year_from: undefined,
+        time_at: undefined,
+    };
+
+    // Merge supplied arguments into default argument set
+    for ( var k in kwargs) {
+        log.debug(k + " : " + this.rule_data[k]);
+        this.rule_data[k] = kwargs[k];
+    }
 }
 Rule.prototype.closestDay = function closestDay()
 {
@@ -660,21 +676,22 @@ Rule.prototype.closestDay = function closestDay()
 var period1 = new Period( {time: ["4","5:56:30"]} );
 log.info( period1.toString() );
 var period2 = new Period({tz:"pacific/auckland"});
-log.info( period2.toString() );
+log.info( "Period 2 == " + period2.toString() );
 // A series of time tests
-new Period( {time: 4} );
+
 new Period( {time: [1,"1:57:30"]} );
 new Period( {time: ["2","2:56:30"]} );
 new Period( {time: [3,[3,56,30]]} );
 new Period( {time: [4,"5:59:30"]} );
 
-/* An example of using splitfirst
-[area,loc] = splitfirst("America/Argentina/Buenos_Aires", "/");
-tzDate(zones[area][loc][0]);
- */
-for ( var area in zones ) {
-    for ( var loc in zones[area]) {
-        new tzDate(zones[area][loc][0]);
-    }
-}
+
+log.debug("Try to get " + period2.default_period.length);
+//~ tz=period2.default_period[tz];
+//~ tzDate(zones[tz[0]][tz[1]][0]);
+
+//~ for ( var area in zones ) {
+    //~ for ( var loc in zones[area]) {
+        //~ new tzDate(zones[area][loc][0]);
+    //~ }
+//~ }
 
