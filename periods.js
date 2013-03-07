@@ -643,6 +643,28 @@ tzDate.prototype.getTzTime = function getTzTime(){
 */
 
 /**********************************************************************
+/* Zone
+ * ====
+ * Creates the complete Zone object from the JSON data structure.
+*/
+function Zone(kwargs) {
+// {"gmt_off": 0, "area": "africa", "rules": "Morocco", "location": "casablanca", "zone_format": "WE%sT", "until": [2050, 1, 1, 0, 0, 0]}
+    this.zone_data = {
+        gmt_off: undefined,
+        area: undefined,
+        rules: undefined,
+        location: undefined,
+        zone_format: undefined,
+        until: undefined,
+    };
+
+    // Merge supplied arguments into default argument set
+    for ( var k in kwargs) {
+        log.debug("Zone=" + k + " : " + this.zone_data[k]);
+        this.zone_data[k] = kwargs[k];
+    }
+}
+/**********************************************************************
 /* Rule
  * ====
  * Creates the complete Rule object from the JSON data structure.
@@ -651,12 +673,12 @@ function Rule(kwargs) {
 // {"rule_type": null, "day_on": ["Sun", ">=", "8"], "save": 3600, "letters": "D", "name": "Canada", "month_in": 3, "year_to": 2050, "year_from": 2007, "time_at": [7200, null]}
     this.rule_data = {
         rule_type: undefined,
-        day_on:  undefined,
-        save:   undefined,
-        letters:  undefined,
+        day_on: undefined,
+        save: undefined,
+        letters: undefined,
         name: undefined,
-        month_in:  undefined,
-        year_to:  undefined,
+        month_in: undefined,
+        year_to: undefined,
         year_from: undefined,
         time_at: undefined,
     };
@@ -670,7 +692,7 @@ function Rule(kwargs) {
 Rule.prototype.closestDay = function closestDay()
 {
 /// To Do: calculate the closest day give a date.
-
+	
 }
 
 var period1 = new Period( {time: ["4","5:56:30"]} );
@@ -678,6 +700,7 @@ log.info( period1.toString() );
 var period2 = new Period({tz:"pacific/auckland"});
 log.info( "Period 2 == " + period2.toString() );
 // A series of time tests
+new Zone(zones.pacific.auckland[0]);
 
 new Period( {time: [1,"1:57:30"]} );
 new Period( {time: ["2","2:56:30"]} );
