@@ -160,7 +160,7 @@ function Period(kwargs){
 
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
-        log.debug(k + " : " + this.default_period[k]);
+        log.debug("Period = " + k + " : " + this.default_period[k] + " set to " + kwargs[k]);
         this.default_period[k] = kwargs[k];
     }
     // Call functions to process period arguments.
@@ -192,10 +192,10 @@ Period.prototype.checkDate = function checkDate(check_date)
     throw "checkDate Unimplemented";
 }
 /**********************************************************************
- * parseExecute 
+ * parseExecute
  * ============
- * 
-*/ 
+ *
+*/
 Period.prototype.parseExecute = function parseExecute() {
     var execute_period = this.default_period["execute"];
     log.debug('Execute period is ' + execute_period + " and default policy is " + execute_policy);
@@ -205,11 +205,16 @@ Period.prototype.parseExecute = function parseExecute() {
     this.default_period["execute"] = execute_period;
 }
 /**********************************************************************/
-Period.prototype.parseTimeZone = function paseTimeZone() {
+Period.prototype.parseTimeZone = function parseTimeZone() {
     var tz = this.default_period["tz"];
-    log.debug(tz.splitOnFirst("/"));
+
     tz = tz.splitOnFirst("/");
     tz = zones[tz[0]][tz[1]];
+
+    // To do: convert the timezone data into a Timezone Object.
+    log.debug("Create timezone object using area/location: " + tz[0].area + "/" + tz[0].location);
+    tz = new Zone(tz[0]);
+
     this.default_period["tz"] = tz;
 }
 /**********************************************************************/
@@ -251,8 +256,8 @@ Period.prototype.parseWeek = function parseWeek() {
         throw "Expected 2 agruments for week but got " + week.length;
     }
 
-    week[0] = parseInt(week[0]);
-    week[1] = parseInt(week[1]);
+    week[0] = this._validateWeek(week[0]);
+    week[1] = this._validateWeek(week[1]);
 
     // Sanity check the week range limits.
     if ( week[0] > week[1] ) {
@@ -260,6 +265,13 @@ Period.prototype.parseWeek = function parseWeek() {
     }
 
     this.default_period["week"] = week;
+}
+Period.prototype._validateWeek = function _validateWeek(week) {
+    tmp = parseInt(week);
+    if ( ! ( 1 <= tmp && tmp <= 52 ) ) {
+        throw tmp + " isn't a valid week range value";
+    }
+    return tmp;
 }
 /**********************************************************************
  * parseTime
@@ -291,7 +303,7 @@ Period.prototype.parseTime = function parseTime() {
 
     this.default_period["time"] = time;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype._validateTime = function _validateTime(time) {
     var ms_factor=[3600000,60000,1000,1];
     var max_limit=[23,59,59,999];
@@ -409,7 +421,7 @@ Period.prototype._validateDay = function _validateDay(day) {
         throw day + " isn't a valid value for day argument.";
     }
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype.parseMonth = function parseMonth()
 {
     var month = this.default_period["month"];
@@ -492,7 +504,7 @@ Period.prototype.parseDayOfMonth = function parseDayOfMonth() {
     }
     this.default_period["dom"] = dom;
 }
-//**********************************************************************
+/**********************************************************************/
 Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
     try {
         dom = parseInt(dom);
@@ -505,8 +517,12 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
     return dom;
 }
 
-//**********************************************************************
-/* Test Date object with tz data values" */
+/**********************************************************************
+ * Test Date object with tz data values.
+ * @date: A standard javascript Date object.
+ * @tz: the timezone to use with the date.
+ * @dst: the daylight savings rule to apply.
+*/
 function tzDate(date, tz, dst) {
     this.now = new Date();
     // these variables aren't all require but they're included in a previsory capacity.
@@ -537,6 +553,9 @@ function tzDate(date, tz, dst) {
     // Calculate leap year.
     this.leapYearsSinceEpoch();
 
+    // ZONE ... warning, this needs to have error checking applied!
+    res = tz.splitOnFirst("/");
+    this.zone = new Zone(zones[res[0],res[1][0]], this);  // pass in parent object to get access to this.now
 }
 //**********************************************************************
 tzDate.prototype.toString = function toString() {
@@ -646,8 +665,9 @@ tzDate.prototype.getTzTime = function getTzTime(){
 /* Zone
  * ====
  * Creates the complete Zone object from the JSON data structure.
+ * @kwargs: an object containing the timezone data structure.
 */
-function Zone(kwargs) {
+function Zone(kwargs, o) {
 // {"gmt_off": 0, "area": "africa", "rules": "Morocco", "location": "casablanca", "zone_format": "WE%sT", "until": [2050, 1, 1, 0, 0, 0]}
     this.zone_data = {
         gmt_off: undefined,
@@ -660,16 +680,31 @@ function Zone(kwargs) {
 
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
-        log.debug("Zone=" + k + " : " + this.zone_data[k]);
+        log.debug("Zone = " + k + " : " + this.zone_data[k] + " set to " + kwargs[k]);
         this.zone_data[k] = kwargs[k];
     }
+
+    this.parseDstRule(o);
+}
+Zone.prototype.parseDstRule = function parseDstRule(o) {
+    var rule_name = this.zone_data["rules"];
+    for ( k in rules[rule_name] ) {
+        if ( o.now.getUTCFullYear() >= rules[rule_name][k].year_from &&
+                o.now.getUTCFullYear() <= rules[rule_name][k].year_to) {
+
+            log.debug("From:"+rules[rule_name][k].year_from);
+            log.debug("To:"+rules[rule_name][k].year_to);
+
+        }
+    };
+
 }
 /**********************************************************************
 /* Rule
  * ====
  * Creates the complete Rule object from the JSON data structure.
 */
-function Rule(kwargs) {
+function Rule(kwargs, zone_o) {
 // {"rule_type": null, "day_on": ["Sun", ">=", "8"], "save": 3600, "letters": "D", "name": "Canada", "month_in": 3, "year_to": 2050, "year_from": 2007, "time_at": [7200, null]}
     this.rule_data = {
         rule_type: undefined,
@@ -685,14 +720,28 @@ function Rule(kwargs) {
 
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
-        log.debug(k + " : " + this.rule_data[k]);
+        log.debug(k + " : " + this.rule_data[k] + " set to " + kwargs[k]);
         this.rule_data[k] = kwargs[k];
     }
+
+    // parse data
+    this.closestDay();
+}
+Rule.prototype.toString = function toString() {
+    return this.rule_data[rule_type] + " " +
+            this.rule_data[day_on] + " " +
+            this.rule_data[save] + " " +
+            this.rule_data[letters] + " " +
+            this.rule_data[name] + " " +
+            this.rule_data[month_in] + " " +
+            this.rule_data[year_to] + " " +
+            this.rule_data[year_from] + " " +
+            this.rule_data[time_at];
 }
 Rule.prototype.closestDay = function closestDay()
 {
-/// To Do: calculate the closest day give a date.
-	
+    log.debug("To Do: calculate the closest day give a date.");
+    throw "closestDay not implemented.";
 }
 
 var period1 = new Period( {time: ["4","5:56:30"]} );
@@ -709,12 +758,4 @@ new Period( {time: [4,"5:59:30"]} );
 
 
 log.debug("Try to get " + period2.default_period.length);
-//~ tz=period2.default_period[tz];
-//~ tzDate(zones[tz[0]][tz[1]][0]);
-
-//~ for ( var area in zones ) {
-    //~ for ( var loc in zones[area]) {
-        //~ new tzDate(zones[area][loc][0]);
-    //~ }
-//~ }
 
