@@ -59,13 +59,13 @@ execute_policy = true;      // Set the default execution policy in the event no 
  * more verbose the logging becomes.
  *
 */
-var Log = function(level){
+var Log = function(level) {
     this.level = level;
     this.levels = {"debug": 10, "warn": 20, "info": 30};
     this.active_warn = this.level >= this.levels.debug ? this.html_logger : this.null_logger;
     this.active_debug = this.level >= this.levels.warn ? this.html_logger : this.null_logger;
     this.active_info = this.level >= this.levels.info ? this.html_logger : this.null_logger;
-};
+}
 Log.prototype.logger = function(lvl,msg) {
     console.log(lvl + ": " + msg);
 }
@@ -137,14 +137,18 @@ String.prototype.splitOnFirst = function splitOnFirst(split_char) {
  * The parameters are then used to determine if the current time is with the defined period.
  *
  * Valid keys:
- *   @execute: boolean to indicate if the period is execution or non-execution.
+ *   @execute: boolean to indicate if the period is an execution or non-execution.
  *   @time: a two element array containing the start and end times for a period.
+ *          valid time elements are hour, minute, second, millisecond:
+ *            single int. i.e 4, 10, 17
+ *            single string. i.e "4", "10:30", "17:45:30"
+ *            array of int. i.e [4], [10,30], [17,45,30]
  *   @day: a two element array for the range mon=0 .. sun=6
  *   @dom: a two element array for the range of the day of the month 0 .. 31.
  *   @month: a two element array for the range of months jan=0 .. dec=11.
  *   @week: a two element array for the range of weeks in the year, 0 .. 52.
- *   @year: a two element array for the range years, anything could be valid.
- *   @tz: a string indicating the timezone for which the times represent.
+ *   @year: a two element array for the range of years, anything could be valid.
+ *   @tz: a string indicating the timezone in which the date/time range is represented.
  */
 function Period(kwargs){
     this.default_period = {
@@ -198,7 +202,7 @@ Period.prototype.checkDate = function checkDate(check_date)
 */
 Period.prototype.parseExecute = function parseExecute() {
     var execute_period = this.default_period["execute"];
-    log.debug('Execute period is ' + execute_period + " and default policy is " + execute_policy);
+    log.debug('Period.parseExecute: Execute ' + execute_period + " and default policy is " + execute_policy);
     if ( execute_period == undefined ) {
         execute_period = !execute_policy;
     }
@@ -206,22 +210,15 @@ Period.prototype.parseExecute = function parseExecute() {
 }
 /**********************************************************************/
 Period.prototype.parseTimeZone = function parseTimeZone() {
-    var tz = this.default_period["tz"];
+    var tmp_tz = this.default_period["tz"];
 
-    tz = tz.splitOnFirst("/");
-    tz = zones[tz[0]][tz[1]];
+    log.debug("Period.parseTimeZone: using area/location: " + tmp_tz);
 
-    // To do: convert the timezone data into a Timezone Object.
-    log.debug("Create timezone object using area/location: " + tz[0].area + "/" + tz[0].location);
-    tz = new Zone(tz[0]);
-
-    this.default_period["tz"] = tz;
+    this.default_period["tz"] = new tzDate(0, tmp_tz);
 }
 /**********************************************************************/
 Period.prototype.parseYear = function parseYear() {
     var year = this.default_period["year"];
-
-    log.info("To do: parse this " + year );
 
     // The argument is required to be an array, with a start/stop year.
     if ( getType(year) !== getType([]) ) {
@@ -244,8 +241,6 @@ Period.prototype.parseYear = function parseYear() {
 /**********************************************************************/
 Period.prototype.parseWeek = function parseWeek() {
     var week = this.default_period["week"];
-
-
     log.info("To do: parse this " + week );
 
     // The argument is required to be an array, with a start/stop day.
@@ -422,8 +417,7 @@ Period.prototype._validateDay = function _validateDay(day) {
     }
 }
 /**********************************************************************/
-Period.prototype.parseMonth = function parseMonth()
-{
+Period.prototype.parseMonth = function parseMonth() {
     var month = this.default_period["month"];
     // The argument is required to be an array, with a start/stop day.
     if ( getType(month) !== getType([]) ) {
@@ -447,10 +441,10 @@ Period.prototype._validateMonth = function _validateMonth(month) {
 
     try {
         // Is argument a number?
-        if ( isNaN(parseInt(month)) ) {
+        month = parseInt(month);
+        if ( isNaN(month) ) {
             throw "Not a number";
         }
-        month = parseInt(month);
 
     } catch (err) {
         log.warn("Can't convert " + month + " to integer: " + err);
@@ -524,7 +518,16 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
  * @dst: the daylight savings rule to apply.
 */
 function tzDate(date, tz, dst) {
+    log.debug("tzDate.constructor: date: " + date + " timezone: " + tz + " dst: " + dst);
     this.now = new Date();
+    // ZONE ... warning, this needs to have error checking applied!
+    res = tz.splitOnFirst("/");
+    log.debug("tzDate.constructor: timezone: " + zones[res[0]][res[1]][0]);
+    this.zone = new Zone(zones[res[0]][res[1]][0]);
+    this.rules = []
+    this.parseDstRule();
+
+
     // these variables aren't all require but they're included in a previsory capacity.
     this.msPerLeapYear = 126230400000;
     this.msPerYear = 31536000000;
@@ -553,11 +556,9 @@ function tzDate(date, tz, dst) {
     // Calculate leap year.
     this.leapYearsSinceEpoch();
 
-    // ZONE ... warning, this needs to have error checking applied!
-    res = tz.splitOnFirst("/");
-    this.zone = new Zone(zones[res[0],res[1][0]], this);  // pass in parent object to get access to this.now
+
 }
-//**********************************************************************
+/**********************************************************************/
 tzDate.prototype.toString = function toString() {
     // to do : implement this to include tz offset, dst and abbreviation.
     return  "Now: " + this.now +
@@ -569,6 +570,25 @@ tzDate.prototype.toString = function toString() {
             "ms today: " + this.msToday  +
             "day of year: " + this.dayOfYear  +
             "Year: " + this.Year;
+}
+/**********************************************************************/
+tzDate.prototype.parseDstRule = function parseDstRule() {
+    // apply time zone offset to date in order to decide if a rule should be used.
+    tz_now = new Date( this.now.getTime() + this.zone.gmtOffset() );
+    rule_name = this.zone.getRule();
+    log.debug("tzDate.parseDstRule: " + this.zone.getRule() + " : " + this.now + " : " + tz_now);
+
+    for ( k in rules[rule_name] ) {
+        var tmp_r = rules[rule_name][k];
+        if ( tz_now.getUTCFullYear() >= tmp_r.year_from && tz_now.getUTCFullYear() <= tmp_r.year_to) {
+            log.debug("tzDate.parseDstRule Rule match: "+rules[rule_name][k].year_from + "-" + rules[rule_name][k].year_to);
+            this.rules.push(new Rule(rules[rule_name][k], tz_now));
+        }
+    };
+
+}
+tzDate.prototype.timezoneName = function timezoneName() {
+    return this.zone.name();
 }
 //**********************************************************************
 tzDate.prototype.leapYearsSinceEpoch = function leapYearsSinceEpoch() {
@@ -607,68 +627,23 @@ tzDate.prototype.tz = function tz(tz) {
     log.debug('set tz:' + tz);
     return true;
 }
-//**********************************************************************
-tzDate.prototype.getTzTime = function getTzTime(){
-    return this.getTime() + this.tz;
-}
 
-/*
- * Commented out until it can be intergrated into the tzDate object.
-    var output = "<b>" + tz.area + "/" + tz.location + "</b> : ";
 
-    // Calculate gmt offset
-    d.setTime( d.getTime() + (tz.gmt_off*1000) );
-    htmlLine(d.getTime() + "  is " + d.toUTCString() + " with zone as " + tz.zone_format + " and refers to rule " + tz.rules);
-
-    // Calculate daylight savings offset
-
-    var rule_output = ""
-    // Display the rule information for the timezone.
-    if ( tz.rules != "-" ) {
-        // display any defined rules.
-        if ( rules[tz.rules].length > 0 ) {
-            for ( r in rules[tz.rules] ) {
-                if ( rules[tz.rules][r]["year_from"] <= d.getUTCFullYear()
-                     && d.getUTCFullYear() <= rules[tz.rules][r]["year_to"]  ) {
-                    // Calculate the day of the month.
-
-                    rule_output += "<br><i>Type:"+ rules[tz.rules][r]["rule_type"]+ ", " +
-                           "Day On:"+ rules[tz.rules][r]["day_on"]+ ", " +
-                           "Save:"+ rules[tz.rules][r]["save"]+ ", " +
-                           "Letters:"+ rules[tz.rules][r]["letters"]+ ", " +
-                           "Name:"+ rules[tz.rules][r]["name"]+ ", " +
-                           "Month:"+ rules[tz.rules][r]["month_in"]+ ", " +
-                           "Year: "+ rules[tz.rules][r]["year_to"]+ ", " +
-                           "From: "+ rules[tz.rules][r]["year_from"]+ ", " +
-                           "At: "+ rules[tz.rules][r]["time_at"] + "</i><br>";
-
-                    // a date calculate will determine which rule is in effect for the current date/time.
-                    tz.zone_format = tz.zone_format.replace("%s", rules[tz.rules][r]["letters"]);
-                }
-            }
-        } else {
-            tz.zone_format = tz.zone_format.replace("%s","");
-            // the colour is for highlighting which zones don't have rules.
-            tz.zone_format = "<font color=blue>" + tz.zone_format + "</font>"
-        }
-    } else {
-        tz.zone_format = tz.zone_format.replace("%s","");
-        tz.zone_format = "<font color=green>" + tz.zone_format + "</font>"
-    }
-
-    output += d.toUTCString() + "(" + tz.zone_format +")";
-    htmlLine(output+rule_output);
-}
-*/
 
 /**********************************************************************
 /* Zone
  * ====
  * Creates the complete Zone object from the JSON data structure.
  * @kwargs: an object containing the timezone data structure.
+ *   The valid keys are the follow:
+ *      @gmt_off: GMT/UTC offset in seconds.
+ *      @area: name of timezone area.
+ *      @rules: name of rule used by timezone.  Used as key in the rules object data set.
+ *      @location: name of timezone location.
+ *      @zone_format: abbreviation of timezone+daylight savings time in string format.
+ *      @until: date until the timezone is to be considered applicable.
 */
-function Zone(kwargs, o) {
-// {"gmt_off": 0, "area": "africa", "rules": "Morocco", "location": "casablanca", "zone_format": "WE%sT", "until": [2050, 1, 1, 0, 0, 0]}
+function Zone(kwargs) {
     this.zone_data = {
         gmt_off: undefined,
         area: undefined,
@@ -680,32 +655,38 @@ function Zone(kwargs, o) {
 
     // Merge supplied arguments into default argument set
     for ( var k in kwargs) {
-        log.debug("Zone = " + k + " : " + this.zone_data[k] + " set to " + kwargs[k]);
+        log.debug("Zone.constructor: " + k + " : " + this.zone_data[k] + " set to " + kwargs[k]);
         this.zone_data[k] = kwargs[k];
     }
-
-    this.parseDstRule(o);
+    this.zone_data["gmt_off"] *= 1000; // set value to milliseconds for consistency with javascript.
 }
-Zone.prototype.parseDstRule = function parseDstRule(o) {
-    var rule_name = this.zone_data["rules"];
-    for ( k in rules[rule_name] ) {
-        if ( o.now.getUTCFullYear() >= rules[rule_name][k].year_from &&
-                o.now.getUTCFullYear() <= rules[rule_name][k].year_to) {
-
-            log.debug("From:"+rules[rule_name][k].year_from);
-            log.debug("To:"+rules[rule_name][k].year_to);
-
-        }
-    };
-
+Zone.prototype.getRule = function getRule() {
+    return this.zone_data["rules"];
+}
+Zone.prototype.gmtOffset = function getRule() {
+    return this.zone_data["gmt_off"];
+}
+Zone.prototype.zoneName = function zoneName() {
+    return this.zone_data["area"] + "/" + this.zone_data["location"];
 }
 /**********************************************************************
 /* Rule
  * ====
  * Creates the complete Rule object from the JSON data structure.
+ * @kwargs
+ *   Valid keys
+ *    @rule_type:
+ *    @day_on:
+ *    @save:
+ *    @letters:
+ *    @name:
+ *    @month_in:
+ *    @year_to:
+ *    @year_from:
+ *    @time_at:
+ * @tzd: a Date object which is a variable used by day_on to get the day of the month.
 */
-function Rule(kwargs, zone_o) {
-// {"rule_type": null, "day_on": ["Sun", ">=", "8"], "save": 3600, "letters": "D", "name": "Canada", "month_in": 3, "year_to": 2050, "year_from": 2007, "time_at": [7200, null]}
+function Rule(kwargs, tzd) {
     this.rule_data = {
         rule_type: undefined,
         day_on: undefined,
@@ -725,7 +706,7 @@ function Rule(kwargs, zone_o) {
     }
 
     // parse data
-    this.closestDay();
+    this.closestDay(tzd);
 }
 Rule.prototype.toString = function toString() {
     return this.rule_data[rule_type] + " " +
@@ -738,23 +719,28 @@ Rule.prototype.toString = function toString() {
             this.rule_data[year_from] + " " +
             this.rule_data[time_at];
 }
-Rule.prototype.closestDay = function closestDay()
-{
-    log.debug("To Do: calculate the closest day give a date.");
-    throw "closestDay not implemented.";
+Rule.prototype.closestDay = function closestDay(tzd) {
+    log.debug("Calculate the closest day for " + tzd.toUTCString() );
+    var mon = this.rule_data["month_in"];
+    var [day , cmp, dom] = this.rule_data["day_on"];
+    
+    
+    log.debug( day + cmp + dom + mon );
+    eval ( 31 + c+dm);
+    tzd.getDay();
 }
 
-var period1 = new Period( {time: ["4","5:56:30"]} );
-log.info( period1.toString() );
+//~ var period1 = new Period( {time: ["4","5:56:30"]} );
+//~ log.info( period1.toString() );
 var period2 = new Period({tz:"pacific/auckland"});
 log.info( "Period 2 == " + period2.toString() );
 // A series of time tests
-new Zone(zones.pacific.auckland[0]);
+//~ new Zone(zones.pacific.auckland[0]);
 
-new Period( {time: [1,"1:57:30"]} );
-new Period( {time: ["2","2:56:30"]} );
-new Period( {time: [3,[3,56,30]]} );
-new Period( {time: [4,"5:59:30"]} );
+//~ new Period( {time: [1,"1:57:30"]} );
+//~ new Period( {time: ["2","2:56:30"]} );
+//~ new Period( {time: [3,[3,56,30]]} );
+//~ new Period( {time: [4,"5:59:30"]} );
 
 
 log.debug("Try to get " + period2.default_period.length);
