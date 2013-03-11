@@ -163,10 +163,12 @@ function Period(kwargs){
     };
 
     // Merge supplied arguments into default argument set
+    var tmp_s = "";
     for ( var k in kwargs) {
-        log.debug("Period = " + k + " : " + this.default_period[k] + " set to " + kwargs[k]);
+        tmp_s += "  " + k + "=" + kwargs[k];
         this.default_period[k] = kwargs[k];
     }
+    log.debug("Period Args: " + tmp_s);
     // Call functions to process period arguments.
     this.parseExecute();
     this.parseTimeZone();
@@ -518,11 +520,12 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
  * @dst: the daylight savings rule to apply.
 */
 function tzDate(date, tz, dst) {
-    log.debug("tzDate.constructor: date: " + date + " timezone: " + tz + " dst: " + dst);
+    var tmp_s = "";
+    tmp_s +="tzDate Args:  date=" + date + " timezone=" + tz + " dst=" + dst;
     this.now = new Date();
     // ZONE ... warning, this needs to have error checking applied!
     res = tz.splitOnFirst("/");
-    log.debug("tzDate.constructor: timezone: " + zones[res[0]][res[1]][0]);
+    tmp_s += " zone: " + zones[res[0]][res[1]][0];
     this.zone = new Zone(zones[res[0]][res[1]][0]);
     this.rules = []
     this.parseDstRule();
@@ -556,7 +559,8 @@ function tzDate(date, tz, dst) {
     // Calculate leap year.
     this.leapYearsSinceEpoch();
 
-
+    log.debug(tmp_s);
+    delete(tmp_s);
 }
 /**********************************************************************/
 tzDate.prototype.toString = function toString() {
@@ -654,10 +658,12 @@ function Zone(kwargs) {
     };
 
     // Merge supplied arguments into default argument set
+    var tmp_s = "";
     for ( var k in kwargs) {
-        log.debug("Zone.constructor: " + k + " : " + this.zone_data[k] + " set to " + kwargs[k]);
+        tmp_s += "  " + k + "=" + kwargs[k];
         this.zone_data[k] = kwargs[k];
     }
+    log.debug("Zone Args: " + tmp_s);
     this.zone_data["gmt_off"] *= 1000; // set value to milliseconds for consistency with javascript.
 }
 Zone.prototype.getRule = function getRule() {
@@ -700,11 +706,12 @@ function Rule(kwargs, tzd) {
     };
 
     // Merge supplied arguments into default argument set
+    var tmp_s = "";
     for ( var k in kwargs) {
-        log.debug(k + " : " + this.rule_data[k] + " set to " + kwargs[k]);
+        tmp_s += "  " + k + "=" + kwargs[k];
         this.rule_data[k] = kwargs[k];
     }
-
+    log.debug("Rule Args: " + tmp_s);
     // parse data
     this.closestDay(tzd);
 }
@@ -723,17 +730,16 @@ Rule.prototype.closestDay = function closestDay(tzd) {
     log.debug("Calculate the closest day for " + tzd.toUTCString() );
     var mon = this.rule_data["month_in"];
     var [day , cmp, dom] = this.rule_data["day_on"];
-    
-    
-    log.debug( day + cmp + dom + mon );
-    eval ( 31 + c+dm);
-    tzd.getDay();
+    day = days[day.toLowerCase()];
+    log.debug(day + cmp + dom);
 }
 
-//~ var period1 = new Period( {time: ["4","5:56:30"]} );
-//~ log.info( period1.toString() );
-var period2 = new Period({tz:"pacific/auckland"});
-log.info( "Period 2 == " + period2.toString() );
+
+new Period({tz:"america/campo_grande"});
+new Period({tz:"europe/paris"});
+new Period({tz:"pacific/auckland"});
+new Period({tz:"america/iqaluit"});
+
 // A series of time tests
 //~ new Zone(zones.pacific.auckland[0]);
 
@@ -741,7 +747,3 @@ log.info( "Period 2 == " + period2.toString() );
 //~ new Period( {time: ["2","2:56:30"]} );
 //~ new Period( {time: [3,[3,56,30]]} );
 //~ new Period( {time: [4,"5:59:30"]} );
-
-
-log.debug("Try to get " + period2.default_period.length);
-
