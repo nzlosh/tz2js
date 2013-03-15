@@ -144,9 +144,11 @@ class TimeZoneRule(TimeZoneBase):
 
     def isCurrent(self):
         """
-        Test if the current date/time falls with the min/max period.
+        Test if the current date/time falls within the min/max period.
         """
-        if (self.year_from <= time.gmtime()[0] <= self.year_to) or (self.year_from > time.gmtime()[0]):
+        # Accept rules one year before the current year.  This allows for rules that straddle
+        # start/end of year boundary.
+        if (self.year_from <= time.gmtime()[0]-1 <= self.year_to) or (self.year_from > time.gmtime()[0]-1):
             logging.debug( "%s: Period included." % self.__class__.__name__ )
             return True
         logging.debug( "%s: Period excluded %s -> %s" % ( self.__class__.__name__, self.year_from, self.year_to ) )
@@ -213,8 +215,7 @@ class TimeZoneRule(TimeZoneBase):
         day = comp = dom = None
 
         if day_on.isdigit():
-            day = int(day_on)
-            self.day_on = day
+            dom = int(day_on)
         else:
             try:
                 day, comp, dom = re.search('(\w+)(\W+)(\d+)',day_on).groups()
@@ -244,7 +245,7 @@ class TimeZoneRule(TimeZoneBase):
             time_at = time_at[:-1]
 
         logging.debug("%s: Time At: %s, %s"% (self.__class__.__name__, time_at, special_char) )
-        self.time_at = [self._TimeToSeconds(time_at), special_char]
+        self.time_at = [time_at, special_char]
 
 
     def getTimeAt(self):

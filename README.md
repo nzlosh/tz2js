@@ -59,5 +59,5 @@ Installation
 Thanks to ...
 =============
 
-The group of people that maintain the timezone's extremely detailed and
-complex database.  Great work people!
+The group of people who maintain the extremely detailed and
+complex timezone database.  Great work people!
