@@ -102,13 +102,16 @@ function getType(obj) {
     return Object.prototype.toString.call(obj).split(' ').pop().split(']').shift().toLowerCase();
 }
 function isString(obj) {
-    return getType(obj) === getType("");
+    return getType(obj) === "string";
 }
 function isArray(obj) {
-    return getType(obj) === getType([]);
+    return getType(obj) == "array";
 }
 function isNumber(obj) {
-    return getType(obj) === getType(1);
+    return getType(obj) == "number";
+}
+function isDate(obj) {
+    return getType(obj) == "date";
 }
 /* The prototype method is part of the implementation but it causes undesirable
  * effects when integrated into the Zone and Rule objects.
@@ -316,6 +319,7 @@ Period.prototype.parseTime = function parseTime() {
     if ( time.length != 2 ) {
         throw "Expected 2 agruments for time but got " + time.length;
     }
+
     time[0] = this._validateTime(time[0]);
     time[1] = this._validateTime(time[1]);
 
@@ -398,6 +402,7 @@ Period.prototype.parseDay = function parseDay()
     if ( day.length != 2 ) {
         throw "Expected 2 agruments for day but got " + day.length;
     }
+
     day[0] = this._validateDay(day[0]);
     day[1] = this._validateDay(day[1]);
 
@@ -463,6 +468,7 @@ Period.prototype.parseMonth = function parseMonth() {
     if ( month.length != 2 ) {
         throw "Expected 2 agruments for month but got " + month.length;
     }
+
     month[0] = this._validateMonth(month[0]);
     month[1] = this._validateMonth(month[1]);
 
@@ -564,17 +570,19 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
  * @tz: String used to determine the timezone to use.
 */
 function tzDate(date, tz) {
-
-    this.now = new Date();
+    if ( isDate(date) ) {
+        this.now = new Date(date);
+    } else {
+        this.now = new Date();
+    }
     this.zone = undefined;
-    this.rules = [];
+    this.rule = undefined;
 
+    // parseZone instance has the zone's UTC offset and abbreviation.
     this.parseZone(tz);
+
     this.parseDstRule();
 
-    for ( var i in this.rules) {
-        log.info("<font color='red'>(" + i + ") " + this.rules[i].toString() + "</font>");
-    }
 }
 tzDate.prototype.parseZone = function parseZone(tz) {
     if ( ! isString(tz) ) {
@@ -583,7 +591,7 @@ tzDate.prototype.parseZone = function parseZone(tz) {
     if ( tz.indexOf("/") == -1 ) {
         throw "Unexpected timezone string format: " + tz + " ... expected 'area/location' string.";
     }
-    res = tz.splitOnFirst("/");
+    res = tz.toLowerCase().splitOnFirst("/");
     this.zone = new Zone(zones[res[0]][res[1]][0]);
 }
 /**********************************************************************/
@@ -595,6 +603,7 @@ tzDate.prototype.toString = function toString() {
             this.now.getUTCDate() + "/" +
             this.now.getUTCMonth() + "/" +
             this.now.getUTCFullYear() + " " +
+            this.zone.getUTCOffset() + " " +
             this.zone.getAbbreviation();
 }
 /**********************************************************************
@@ -610,36 +619,33 @@ tzDate.prototype.toString = function toString() {
  * of which daylight savings period we're in.
 */
 tzDate.prototype.parseDstRule = function parseDstRule() {
-    // apply time zone offset to date in order to decide if a rule should be used.
-    var tz_now = new Date( this.now.getTime() + this.zone.getGMTOffset() );
+    var rule_name = this.zone.getRule();
+    log.debug("tzDate.parseDstRule: " + this.zone.getRule() + " : " + this.now);
 
-    rule_name = this.zone.getRule();
-    log.debug("tzDate.parseDstRule: " + this.zone.getRule() + " : " + this.now + " : " + tz_now);
+    var current_rule = undefined;
 
-    /*
-     * This code needs to be refactor.  It's a mess, but to get a proof of concept up and running,
-     * it'll stay for now.
-     */
-    for ( k in rules[rule_name] ) {
-        var tmp_r = rules[rule_name][k];
-        // Limit rules to the current year +/- a year.  The resulting periods
-        // are used to determine if the current date will fall within their boundaries.
-        if ( (tz_now.getUTCFullYear()+1) - rules[rule_name][k].year_from >= 0 &&
-                    (tz_now.getUTCFullYear()+1) - rules[rule_name][k].year_to <= 3 ) {
+    var tmp_date = new Date(this.now);
 
-            // Loop over the 3 possible years the period will apply and generate a Rule object
-            // for all those that match.
-            for ( var y = tz_now.getUTCFullYear()-1; y <tz_now.getUTCFullYear()+2; y++ ) {
+    // Limit rule set to previous or current year's rules.  Anything smaller
+    // or greater than a year won't be in effect for the date being tested.
+    for ( tmp_date.setFullYear(this.now.getUTCFullYear()-1);
+                tmp_date.getUTCFullYear() <= this.now.getUTCFullYear(); tmp_date.setFullYear(tmp_date.getUTCFullYear()+1) ) {
 
-                if ( y >= rules[rule_name][k].year_from && y <= rules[rule_name][k].year_to ) {
-                    log.info("<b>tzDate.parseDstRule Rule match: "+rules[rule_name][k].year_from + "-" + rules[rule_name][k].year_to+"</b>");
-                    var r = new Rule(rules[rule_name][k], this.zone.getGMTOffset(), this.zone.getAbbreviation());
-                    this.rules.push( r );
-                }
+        // The rule set for the timezone must be ordered by oldest date first
+        for ( var rule_def in rules[rule_name] ) {
+            if ( tmp_date.getUTCFullYear() >= rules[rule_name][rule_def].year_from &&
+                    tmp_date.getUTCFullYear() <= rules[rule_name][rule_def].year_to ) {
+
+                log.debug("Matched " + rules[rule_name][rule_def].year_from + " - " + rules[rule_name][rule_def].year_to +  " " + this.zone.getUTCOffset() + this.zone.getAbbreviation());
+                /* the rule object requires the date object in order to resolve day_on from e.g. "sun" <= 15, to an exact day of the month for a given year.
+                 * The leads me to believe it will be easier to parse the rule data set directly from this function and simply set an internal variable
+                 * with the rule that would currently be in effect for the timezone/datetime.
+                 */
+                current_rule = new Rule(rules[rule_name][rule_def]);
+                current_rule.generateDayOn(tmp_date.getUTCFullYear());
             }
         }
-    };
-
+    }
 }
 tzDate.prototype.timezoneName = function timezoneName() {
     return this.zone.name();
@@ -682,7 +688,7 @@ function Zone(kwargs) {
 Zone.prototype.getRule = function getRule() {
     return this.zone_data["rules"];
 }
-Zone.prototype.getGMTOffset = function getGMTOffset() {
+Zone.prototype.getUTCOffset = function getUTCOffset() {
     return this.zone_data["gmt_off"];
 }
 Zone.prototype.zoneName = function zoneName() {
@@ -708,7 +714,7 @@ Zone.prototype.getAbbreviation = function getAbbreviation() {
  *    @time_at:
  * @tzd: a Date object which is a variable used by day_on to get the day of the month.
 */
-function Rule(kwargs, offset, abbr) {
+function Rule(kwargs) {
     this.rule_data = {
         rule_type: undefined,
         day_on: undefined,
@@ -742,10 +748,8 @@ Rule.prototype.toString = function toString() {
             this.rule_data["year_from"] + " " +
             this.rule_data["time_at"];
 }
-Rule.prototype.parseDayOn = function parseDayOn() {
-    var year_from = this.rule_data["year_from"];
-    var year_to = this.rule_data["year_to"];
-    var mon = this.rule_data["month_in"];
+Rule.prototype.generateDayOn = function generateDayOn(y) {
+
     var [day, cmp, dom] = this.rule_data["day_on"];
 
     if ( isString(day) ) {
@@ -769,3 +773,4 @@ new Period({tz:"asia/tehran"});
 //~ new Period( {time: ["2","2:56:30"]} );
 //~ new Period( {time: [3,[3,56,30]]} );
 //~ new Period( {time: [4,"5:59:30"]} );
+new tzDate(undefined,"Pacific/Auckland");
