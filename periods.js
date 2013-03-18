@@ -566,8 +566,8 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
 
 /**********************************************************************
  * Test Date object with tz data values.
- * @date: A javascript Date object.
- * @tz: String used to determine the timezone to use.
+ * @date: A javascript Date object.  Undefined defaults to current UTC time.
+ * @tz: String used to determine the timezone to use.  Undefined defaults to UTC
 */
 function tzDate(date, tz) {
     if ( isDate(date) ) {
@@ -575,6 +575,7 @@ function tzDate(date, tz) {
     } else {
         this.now = new Date();
     }
+
     this.zone = undefined;
     this.rule = undefined;
 
@@ -610,39 +611,55 @@ tzDate.prototype.toString = function toString() {
  * parseDstRule
  * ============
  * Using the Rule's time offset:
- *  s  - standard time ?with daylight savings?
- *  u  - utc
- *  '' - ?localtime - without daylight savings?
- * calculate if the current time is plus or minus 1 year within the range
+ * ZIC(8) <quote>
+ *  Any of these forms may be followed by the letter
+ *  w if the given time is local "wall clock" time,
+ *  s if the given time is local "standard" time, or
+ *  u (or g or z) if the given time is universal time;
+ * in the absence of an indicator, wall clock time is assumed.
+ * </quote>
+ * calculate if the current time is equal to or minus 1 year within the range
  * of the rule.  For periods that match, a Date object is created.  All
- * valid Date objects are added to the list of periods for later comparrison
+ * valid Date objects are added to the list of periods for later comparison
  * of which daylight savings period we're in.
 */
 tzDate.prototype.parseDstRule = function parseDstRule() {
     var rule_name = this.zone.getRule();
-    log.debug("tzDate.parseDstRule: " + this.zone.getRule() + " : " + this.now);
-
     var current_rule = undefined;
-
     var tmp_date = new Date(this.now);
 
-    // Limit rule set to previous or current year's rules.  Anything smaller
-    // or greater than a year won't be in effect for the date being tested.
+    // Restrict the rule set to the previous or current year because
+    // rules in the future won't ever apply to the current time.
     for ( tmp_date.setFullYear(this.now.getUTCFullYear()-1);
                 tmp_date.getUTCFullYear() <= this.now.getUTCFullYear(); tmp_date.setFullYear(tmp_date.getUTCFullYear()+1) ) {
 
-        // The rule set for the timezone must be ordered by oldest date first
+        // The list of rules must be in ascending chronological order!
         for ( var rule_def in rules[rule_name] ) {
+
             if ( tmp_date.getUTCFullYear() >= rules[rule_name][rule_def].year_from &&
                     tmp_date.getUTCFullYear() <= rules[rule_name][rule_def].year_to ) {
 
                 log.debug("Matched " + rules[rule_name][rule_def].year_from + " - " + rules[rule_name][rule_def].year_to +  " " + this.zone.getUTCOffset() + this.zone.getAbbreviation());
-                /* the rule object requires the date object in order to resolve day_on from e.g. "sun" <= 15, to an exact day of the month for a given year.
-                 * The leads me to believe it will be easier to parse the rule data set directly from this function and simply set an internal variable
-                 * with the rule that would currently be in effect for the timezone/datetime.
-                 */
+
                 current_rule = new Rule(rules[rule_name][rule_def]);
-                current_rule.generateDayOn(tmp_date.getUTCFullYear());
+                switch ( current_rule.getTimeRepresentation() ) {
+                    case "s":
+                        log.debug("Standard Time:" + current_rule.getTimeRepresentation() );
+
+                        break;
+                    case "w":
+                        log.debug("Wall Time:" + current_rule.getTimeRepresentation() )
+                        break;
+                    case "u":
+                    case "g":
+                    case "z":
+                        log.debug("UTC Time:" + current_rule.getTimeRepresentation() )
+                        break;
+                    default:
+                        log.debug("Default Wall Time:" + current_rule.getTimeRepresentation() )
+                }
+
+                //current_rule.generateDayOn(tmp_date.getUTCFullYear());
             }
         }
     }
@@ -735,7 +752,7 @@ function Rule(kwargs) {
     }
     log.debug("Rule Args: " + tmp_s);
     // parse data
-    this.parseDayOn();
+    this.generateDayOn();
 }
 Rule.prototype.toString = function toString() {
     return  this.rule_data["rule_type"] + " " +
@@ -756,9 +773,19 @@ Rule.prototype.generateDayOn = function generateDayOn(y) {
         day = days[day.toLowerCase()];
     }
 
+    var d=new Date(Date.UTC(2013,3,15,2,0,0)-this.zone.);
+    d.setTime(d.getTime()+(12*60*60*1000));
+    var day=0;
+    while (day != d.getDay() ) {
+        d.setDate(d.getDate() + 1);
+    }
+    console.log(d.toString());
+
     log.debug(day + cmp + dom);
 }
-
+Rule.prototype.getTimeRepresentation = function getTimeRepresentation() {
+    return this.rule_data["time_at"][1];
+}
 
 new Period({tz:"america/campo_grande"});
 new Period({tz:"europe/paris"});
