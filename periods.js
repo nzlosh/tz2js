@@ -645,15 +645,17 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
                 switch ( current_rule.getTimeRepresentation() ) {
                     case "s":
                         log.debug("Standard Time:" + current_rule.getTimeRepresentation() );
-
+                        // utc + tz
                         break;
                     case "w":
                         log.debug("Wall Time:" + current_rule.getTimeRepresentation() )
+                        // utc  + tz + dst
                         break;
                     case "u":
                     case "g":
                     case "z":
                         log.debug("UTC Time:" + current_rule.getTimeRepresentation() )
+                        // utc
                         break;
                     default:
                         log.debug("Default Wall Time:" + current_rule.getTimeRepresentation() )
@@ -751,8 +753,8 @@ function Rule(kwargs) {
         this.rule_data[k] = kwargs[k];
     }
     log.debug("Rule Args: " + tmp_s);
-    // parse data
-    this.generateDayOn();
+    // parse data - Requires the year from the tzDate parent object.
+    this.generateDayOn(2013);
 }
 Rule.prototype.toString = function toString() {
     return  this.rule_data["rule_type"] + " " +
@@ -765,23 +767,41 @@ Rule.prototype.toString = function toString() {
             this.rule_data["year_from"] + " " +
             this.rule_data["time_at"];
 }
-Rule.prototype.generateDayOn = function generateDayOn(y) {
+Rule.prototype.generateDayOn = function generateDayOn(year) {
 
     var [day, cmp, dom] = this.rule_data["day_on"];
+    var mon = this.rule_data["month_in"];
 
     if ( isString(day) ) {
         day = days[day.toLowerCase()];
     }
+    var def_time = [0,0,0];
 
-    var d=new Date(Date.UTC(2013,3,15,2,0,0)-this.zone.);
-    d.setTime(d.getTime()+(12*60*60*1000));
-    var day=0;
-    while (day != d.getDay() ) {
-        d.setDate(d.getDate() + 1);
+    var time_at = this.rule_data["time_at"][0].split(":");
+    for ( var i in time_at ) {
+        def_time[i] = time_at[i];
     }
-    console.log(d.toString());
+    var [h,m,s] = def_time;
 
-    log.debug(day + cmp + dom);
+    var utc = new Date(Date.UTC(year, mon ,dom, h, m ,s));
+    log.debug( year+"/"+ mon + "/"+dom+" "+ h+":"+ m +":"+s);
+    throw("avoid infinite loop");
+    switch (cmp) {
+        case ">=":
+            while (day != utc.getDay() ) {
+                utc.setDate(utc.getDate() + 1);
+            }
+            break;
+        case "<=":
+            while (day != utc.getDay() ) {
+                utc.setDate(utc.getDate() - 1);
+            }
+            break;
+        default:
+            // An exact day of the month is expected, test it's coherent.
+    }
+
+    log.debug("Find day: " + day + cmp + dom + " = " +utc.toString());
 }
 Rule.prototype.getTimeRepresentation = function getTimeRepresentation() {
     return this.rule_data["time_at"][1];
