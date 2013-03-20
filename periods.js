@@ -37,6 +37,11 @@
  * Javascript's Date object calculations are done using milliseconds timestamp
  * since midnight 1st Jan 1970.
  *
+ * Limitations
+ * ===========
+ * The period checking code is a simple wall clock check.  This means when
+ * time is rolled forward/backward, the period check isn't aware of shift.
+ * E.g. On the last Sun of Marh
  *
  * Resource references
  * ===================
@@ -46,7 +51,13 @@
 
 // Global variables.
 days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
-months = {"jan":0, "feb":1, "mar":2, "apr":3, "may":4, "jun":5, "jul":6, "aug":7, "sep":8, "oct":9, "nov":10, "dec":11};
+months = [{"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
+            {"name" : "mar", "maxdays" :31}, {"name" : "apr", "maxdays" :30},
+            {"name" : "may", "maxdays" :31}, {"name" : "jun", "maxdays" :30},
+            {"name" : "jul", "maxdays" :31}, {"name" : "aug", "maxdays" :31},
+            {"name" : "sep", "maxdays" :30}, {"name" : "oct", "maxdays" :31},
+            {"name" : "nov", "maxdays" :30}, {"name" : "dec", "maxdays" :31}];
+
 execute_policy = true;      // Set the default execution policy in the event no Periods match or are defined.
 
 
@@ -120,6 +131,16 @@ Object.prototype.getType = function(){
     return Object.prototype.toString.call(this).split(' ').pop().split(']').shift().toLowerCase();
 };
 */
+
+/**********************************************************************
+ * isLeap
+ * ======
+ * Returns 0 for non leap years or 1 for leap years.
+ * Note: This code is valid until 2099, 2100 isn't a leap year.
+*/
+function isLeap(year) {
+    return year % 4 ? 0 : 1;
+}
 
 /***********************************************************************
  * splitOnFirst
@@ -579,12 +600,13 @@ function tzDate(date, tz) {
     this.zone = undefined;
     this.rule = undefined;
 
-    // parseZone instance has the zone's UTC offset and abbreviation.
+    // Match timezone area/location and set its UTC offset and abbreviation.
     this.parseZone(tz);
 
-    this.parseDstRule();
+    this.parseDstRule(this.now, this.zone);
 
 }
+
 tzDate.prototype.parseZone = function parseZone(tz) {
     if ( ! isString(tz) ) {
         throw "Timezone must be of type string but received " + getType(tz);
@@ -618,10 +640,9 @@ tzDate.prototype.toString = function toString() {
  *  u (or g or z) if the given time is universal time;
  * in the absence of an indicator, wall clock time is assumed.
  * </quote>
- * calculate if the current time is equal to or minus 1 year within the range
- * of the rule.  For periods that match, a Date object is created.  All
- * valid Date objects are added to the list of periods for later comparison
- * of which daylight savings period we're in.
+ *
+ * Find any rules that fall within 1 year of the date to be tested.
+ * Rules are normalised to UTC time.
 */
 tzDate.prototype.parseDstRule = function parseDstRule() {
     var rule_name = this.zone.getRule();
@@ -775,17 +796,25 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
     if ( isString(day) ) {
         day = days[day.toLowerCase()];
     }
+    if ( isString(dom) ) {
+        if ( dom.match("^last") ) {
+            dom = months[this.rule_data["month_in"]-1]["maxdays"];
+            if ( this.rule_data["month_in"] == 2 ) {
+                dom += isLeap(year);
+            }
+        }
+    }
     var def_time = [0,0,0];
 
     var time_at = this.rule_data["time_at"][0].split(":");
     for ( var i in time_at ) {
-        def_time[i] = time_at[i];
+        def_time[i] = parseInt(time_at[i]);
     }
     var [h,m,s] = def_time;
 
-    var utc = new Date(Date.UTC(year, mon ,dom, h, m ,s));
-    log.debug( year+"/"+ mon + "/"+dom+" "+ h+":"+ m +":"+s);
-    throw("avoid infinite loop");
+    var utc = new Date(Date.UTC(year, mon, dom, h, m ,s));
+    log.debug( "RULE DATE:" + year + "/" + mon + "/" + dom + " " + h + ":" + m + ":" + s);
+
     switch (cmp) {
         case ">=":
             while (day != utc.getDay() ) {
@@ -802,6 +831,7 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
     }
 
     log.debug("Find day: " + day + cmp + dom + " = " +utc.toString());
+    throw("avoid infinite loop");
 }
 Rule.prototype.getTimeRepresentation = function getTimeRepresentation() {
     return this.rule_data["time_at"][1];

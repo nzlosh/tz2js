@@ -224,7 +224,7 @@ class TimeZoneRule(TimeZoneBase):
             try:
                 day = re.search('last(\w+)', day_on).groups()[0]
                 comp = "<="
-                dom = 31
+                dom = "last"
             except(AttributeError):
                 pass
         # confirm the format is valid then calculate the day of the month.
