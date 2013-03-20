@@ -73,8 +73,8 @@ execute_policy = true;      // Set the default execution policy in the event no 
 var Log = function(level) {
     this.level = level;
     this.levels = {"debug": 30, "warn": 20, "info": 10};
-    this.active_warn = this.level >= this.levels.debug ? this.html_logger : this.null_logger;
-    this.active_debug = this.level >= this.levels.warn ? this.html_logger : this.null_logger;
+    this.active_debug = this.level >= this.levels.debug ? this.html_logger : this.null_logger;
+    this.active_warn = this.level >= this.levels.warn ? this.html_logger : this.null_logger;
     this.active_info = this.level >= this.levels.info ? this.html_logger : this.null_logger;
 }
 Log.prototype.logger = function(lvl,msg) {
@@ -98,7 +98,7 @@ Log.prototype.info = function info(msg) {
 
 // Create the logger object immediately so it's available for the function
 // definitions that follow directly below.
-log = new Log(30);
+log = new Log(20);
 
 
 /***********************************************************************
@@ -603,7 +603,7 @@ function tzDate(date, tz) {
     // Match timezone area/location and set its UTC offset and abbreviation.
     this.parseZone(tz);
 
-    this.parseDstRule(this.now, this.zone);
+    this.parseDstRule();
 
 }
 
@@ -660,26 +660,30 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
             if ( tmp_date.getUTCFullYear() >= rules[rule_name][rule_def].year_from &&
                     tmp_date.getUTCFullYear() <= rules[rule_name][rule_def].year_to ) {
 
-                log.debug("Matched " + rules[rule_name][rule_def].year_from + " - " + rules[rule_name][rule_def].year_to +  " " + this.zone.getUTCOffset() + this.zone.getAbbreviation());
+                //~ log.debug("Rule year : " + rules[rule_name][rule_def].year_from + " - " + rules[rule_name][rule_def].year_to);
+                //~ log.debug( this.zone.getUTCOffset() + this.zone.getAbbreviation() );
 
                 current_rule = new Rule(rules[rule_name][rule_def]);
+                log.warn(current_rule);
                 switch ( current_rule.getTimeRepresentation() ) {
                     case "s":
-                        log.debug("Standard Time:" + current_rule.getTimeRepresentation() );
+                        log.warn("Standard Time:" + current_rule.getTimeRepresentation() );
                         // utc + tz
-                        break;
-                    case "w":
-                        log.debug("Wall Time:" + current_rule.getTimeRepresentation() )
-                        // utc  + tz + dst
+                        log.info(this.zone.getAbbreviation().replace("%s", current_rule.getDSTLetter()));
+                        // pass in a copy of the date/time and the timezone.
+                        current_rule.standardTimeToUTC(new Date(this.now), this.zone);
                         break;
                     case "u":
                     case "g":
                     case "z":
-                        log.debug("UTC Time:" + current_rule.getTimeRepresentation() )
-                        // utc
+                        log.warn("UTC Time:" + current_rule.getTimeRepresentation() )
+                        current_rule.utcTime(new Date(this.now), this.zone);
                         break;
+                    case "w":
+                        log.warn("Wall Time:" + current_rule.getTimeRepresentation() )
                     default:
-                        log.debug("Default Wall Time:" + current_rule.getTimeRepresentation() )
+                        log.warn("Default Wall Time:" + current_rule.getTimeRepresentation() )
+                        current_rule.wallTimeToUTC(new Date(this.now), this.zone);
                 }
 
                 //current_rule.generateDayOn(tmp_date.getUTCFullYear());
@@ -690,8 +694,6 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
 tzDate.prototype.timezoneName = function timezoneName() {
     return this.zone.name();
 }
-
-
 
 /**********************************************************************
 /* Zone
@@ -774,8 +776,6 @@ function Rule(kwargs) {
         this.rule_data[k] = kwargs[k];
     }
     log.debug("Rule Args: " + tmp_s);
-    // parse data - Requires the year from the tzDate parent object.
-    this.generateDayOn(2013);
 }
 Rule.prototype.toString = function toString() {
     return  this.rule_data["rule_type"] + " " +
@@ -787,6 +787,26 @@ Rule.prototype.toString = function toString() {
             this.rule_data["year_to"] + " " +
             this.rule_data["year_from"] + " " +
             this.rule_data["time_at"];
+}
+Rule.prototype.getTimeRepresentation = function getTimeRepresentation() {
+    return this.rule_data["time_at"][1];
+}
+Rule.prototype.getDSTLetter = function getDSTLetter() {
+    return this.rule_data["letters"];
+}
+Rule.prototype.utcTime = function utcTime(_date, _tz) {
+    throw ("utcTime unimplemented");
+    return false;
+}
+Rule.prototype.standardTimeToUTC = function standardTimeToUTC(_date, _tz) {
+    // get the year
+    log.info(_date.getFullYear());
+    throw ("standardTimeToUTC unimplemented");
+    return false;
+}
+Rule.prototype.wallTimeToUTC = function wallTimeToUTC(_date, _tz) {
+    throw ("wallTimeToUTC unimplemented");
+    return false;
 }
 Rule.prototype.generateDayOn = function generateDayOn(year) {
 
@@ -833,15 +853,12 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
     log.debug("Find day: " + day + cmp + dom + " = " +utc.toString());
     throw("avoid infinite loop");
 }
-Rule.prototype.getTimeRepresentation = function getTimeRepresentation() {
-    return this.rule_data["time_at"][1];
-}
 
-new Period({tz:"america/campo_grande"});
-new Period({tz:"europe/paris"});
-new Period({tz:"pacific/auckland"});
-new Period({tz:"america/iqaluit"});
-new Period({tz:"asia/tehran"});
+//~ new Period({tz:"america/campo_grande"});
+//~ new Period({tz:"europe/paris"});
+//~ new Period({tz:"pacific/auckland"});
+//~ new Period({tz:"america/iqaluit"});
+//~ new Period({tz:"asia/tehran"});
 
 // A series of time tests
 //~ new Zone(zones.pacific.auckland[0]);
@@ -850,4 +867,4 @@ new Period({tz:"asia/tehran"});
 //~ new Period( {time: ["2","2:56:30"]} );
 //~ new Period( {time: [3,[3,56,30]]} );
 //~ new Period( {time: [4,"5:59:30"]} );
-new tzDate(undefined,"Pacific/Auckland");
+new tzDate(new Date(2009,2),"Pacific/Auckland");
