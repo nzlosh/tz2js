@@ -51,7 +51,7 @@
 
 // Global variables.
 days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
-months = [{"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
+months = [  {"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
             {"name" : "mar", "maxdays" :31}, {"name" : "apr", "maxdays" :30},
             {"name" : "may", "maxdays" :31}, {"name" : "jun", "maxdays" :30},
             {"name" : "jul", "maxdays" :31}, {"name" : "aug", "maxdays" :31},
@@ -59,6 +59,7 @@ months = [{"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
             {"name" : "nov", "maxdays" :30}, {"name" : "dec", "maxdays" :31}];
 
 execute_policy = true;      // Set the default execution policy in the event no Periods match or are defined.
+
 
 
 /***********************************************************************
@@ -98,7 +99,7 @@ Log.prototype.info = function info(msg) {
 
 // Create the logger object immediately so it's available for the function
 // definitions that follow directly below.
-log = new Log(20);
+log = new Log(30);
 
 
 /***********************************************************************
@@ -592,9 +593,9 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
 */
 function tzDate(date, tz) {
     if ( isDate(date) ) {
-        this.now = new Date(date);
+        this._utc = new Date(date);
     } else {
-        this.now = new Date();
+        this._utc = new Date();
     }
 
     this.zone = undefined;
@@ -620,13 +621,13 @@ tzDate.prototype.parseZone = function parseZone(tz) {
 /**********************************************************************/
 tzDate.prototype.toString = function toString() {
     // to do : Integrate tz offset, dst offset and abbreviation.
-    return  this.now.getUTCHours() + ":" +
-            this.now.getUTCMinutes() + ":" +
-            this.now.getUTCSeconds() + " " +
-            this.now.getUTCDate() + "/" +
-            this.now.getUTCMonth() + "/" +
-            this.now.getUTCFullYear() + " " +
-            this.zone.getUTCOffset() + " " +
+    return  this._utc.getUTCHours() + ":" +
+            this._utc.getUTCMinutes() + ":" +
+            this._utc.getUTCSeconds() + " " +
+            this._utc.getUTCDate() + "/" +
+            this._utc.getUTCMonth() + "/" +
+            this._utc.getUTCFullYear() + " " +
+            this._utc.getUTCOffset() + " " +
             this.zone.getAbbreviation();
 }
 /**********************************************************************
@@ -646,51 +647,97 @@ tzDate.prototype.toString = function toString() {
 */
 tzDate.prototype.parseDstRule = function parseDstRule() {
     var rule_name = this.zone.getRule();
-    var current_rule = undefined;
-    var tmp_date = new Date(this.now);
+    var normalised_rules = {idx:[]};
+    var tmp_date = new Date(this._utc);
 
-    // Restrict the rule set to the previous or current year because
-    // rules in the future won't ever apply to the current time.
-    for ( tmp_date.setFullYear(this.now.getUTCFullYear()-1);
-                tmp_date.getUTCFullYear() <= this.now.getUTCFullYear(); tmp_date.setFullYear(tmp_date.getUTCFullYear()+1) ) {
+    // The list of rules must be in ascending chronological order!
+    for ( var rule_def in rules[rule_name] ) {
+        var r = rules[rule_name][rule_def];
+        for ( var year = r.year_from; year <= r.year_to; year++ ) {
+            log.warn(year);
 
-        // The list of rules must be in ascending chronological order!
-        for ( var rule_def in rules[rule_name] ) {
+            // Retruns a UTC time for the rule's transition (ignorant of tz and dst).
+            var naive_utc = this.getNaiveUTCRuleTime(year, r);
 
-            if ( tmp_date.getUTCFullYear() >= rules[rule_name][rule_def].year_from &&
-                    tmp_date.getUTCFullYear() <= rules[rule_name][rule_def].year_to ) {
+            switch ( r.time_at[1] ) {
+                case "u":
+                case "g":
+                case "z":
+                    log.warn("UTC Time:" + r.time_at[1] + " " + naive_utc.toUTCString() );
+                    break;
+                case "w":
+                    // utc - tz - dst
+                    // in the case, there are no previous daylight savings transitions to
+                    // apply, we simply apply standard time.
+                    var utc = new Date(naive_utc - this.zone.getUTCOffset());
+                    if ( normalised_rules.idx.length ) {
+                        for (nr in normalised_rules.idx ){
+                            log.info("Find previous")
+                        }
+                    } else {
+                        log.info("No previous rules found, applying standard time");
+                    }
+                    log.warn( "Wall Time:" + r.time_at[1]  )
 
-                //~ log.debug("Rule year : " + rules[rule_name][rule_def].year_from + " - " + rules[rule_name][rule_def].year_to);
-                //~ log.debug( this.zone.getUTCOffset() + this.zone.getAbbreviation() );
+                    break;
+                case "s":
+                    // utc - tz
+                    // standard time is the default, drop through.
+                default:
+                    log.warn("Default Standard Time:" + r.time_at[1] );
+                    var utc = new Date(naive_utc - this.zone.getUTCOffset());
+                    log.info( utc.toUTCString() + " -- " +  this.zone.getAbbreviation().replace("%s", r.letters));
 
-                current_rule = new Rule(rules[rule_name][rule_def]);
-                log.warn(current_rule);
-                switch ( current_rule.getTimeRepresentation() ) {
-                    case "s":
-                        log.warn("Standard Time:" + current_rule.getTimeRepresentation() );
-                        // utc + tz
-                        log.info(this.zone.getAbbreviation().replace("%s", current_rule.getDSTLetter()));
-                        // pass in a copy of the date/time and the timezone.
-                        current_rule.standardTimeToUTC(new Date(this.now), this.zone);
-                        break;
-                    case "u":
-                    case "g":
-                    case "z":
-                        log.warn("UTC Time:" + current_rule.getTimeRepresentation() )
-                        current_rule.utcTime(new Date(this.now), this.zone);
-                        break;
-                    case "w":
-                        log.warn("Wall Time:" + current_rule.getTimeRepresentation() )
-                    default:
-                        log.warn("Default Wall Time:" + current_rule.getTimeRepresentation() )
-                        current_rule.wallTimeToUTC(new Date(this.now), this.zone);
-                }
-
-                //current_rule.generateDayOn(tmp_date.getUTCFullYear());
             }
         }
     }
 }
+tzDate.prototype.getNaiveUTCRuleTime = function getNaiveUTCRuleTime(year, r) {
+
+    var [day, cmp, dom] = r["day_on"];
+    var mon = r["month_in"];
+
+    if ( isString(day) ) {
+        day = days[day.toLowerCase()];
+    }
+    if ( isString(dom) ) {
+        if ( dom.match("^last") ) {
+            dom = months[ mon - 1]["maxdays"];
+            if ( mon == 2 ) {
+                dom += isLeap(year);
+            }
+        }
+    }
+    var def_time = [0,0,0];
+
+    var time_at = r["time_at"][0].split(":");
+    for ( var i in time_at ) {
+        def_time[i] = parseInt(time_at[i]);
+    }
+    var [h,m,s] = def_time;
+
+    var utc = new Date(Date.UTC(year, mon, dom, h, m ,s));
+    log.debug( "RULE DATE:" + year + "/" + mon + "/" + dom + " " + h + ":" + m + ":" + s);
+
+    switch (cmp) {
+        case ">=":
+            while (day != utc.getDay() ) {
+                utc.setDate(utc.getDate() + 1);
+            }
+            break;
+        case "<=":
+            while (day != utc.getDay() ) {
+                utc.setDate(utc.getDate() - 1);
+            }
+            break;
+        default:
+            // An exact day of the month is expected, test it's coherent.
+    }
+
+    log.debug("Rule : " +utc.toString() + " @" + utc.getTime());
+    return utc;
+}
+
 tzDate.prototype.timezoneName = function timezoneName() {
     return this.zone.name();
 }
@@ -743,6 +790,7 @@ Zone.prototype.getAbbreviation = function getAbbreviation() {
 /* Rule
  * ====
  * Creates the complete Rule object from the JSON data structure.
+ * See 'man 8 zic' for more information relating to the data field definitions.
  * @kwargs
  *   Valid keys
  *    @rule_type:
@@ -754,7 +802,6 @@ Zone.prototype.getAbbreviation = function getAbbreviation() {
  *    @year_to:
  *    @year_from:
  *    @time_at:
- * @tzd: a Date object which is a variable used by day_on to get the day of the month.
 */
 function Rule(kwargs) {
     this.rule_data = {
