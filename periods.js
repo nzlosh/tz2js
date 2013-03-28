@@ -648,47 +648,41 @@ tzDate.prototype.toString = function toString() {
 tzDate.prototype.parseDstRule = function parseDstRule() {
     var rule_name = this.zone.getRule();
     var normalised_rules = {idx:[]};
-    var tmp_date = new Date(this._utc);
 
     // The list of rules must be in ascending chronological order!
     for ( var rule_def in rules[rule_name] ) {
         var r = rules[rule_name][rule_def];
         for ( var year = r.year_from; year <= r.year_to; year++ ) {
-            log.warn(year);
-
             // Retruns a UTC time for the rule's transition (ignorant of tz and dst).
             var naive_utc = this.getNaiveUTCRuleTime(year, r);
-
+            var offset = 0;
             switch ( r.time_at[1] ) {
                 case "u":
                 case "g":
                 case "z":
-                    log.warn("UTC Time:" + r.time_at[1] + " " + naive_utc.toUTCString() );
+                    log.debug("UTC Time:" + r.time_at[1] + " " + naive_utc.toUTCString() );
+                    offset = 0;
                     break;
                 case "w":
                     // utc - tz - dst
-                    // in the case, there are no previous daylight savings transitions to
-                    // apply, we simply apply standard time.
-                    var utc = new Date(naive_utc - this.zone.getUTCOffset());
-                    if ( normalised_rules.idx.length ) {
-                        for (nr in normalised_rules.idx ){
-                            log.info("Find previous")
-                        }
-                    } else {
-                        log.info("No previous rules found, applying standard time");
-                    }
-                    log.warn( "Wall Time:" + r.time_at[1]  )
-
+                    // In the event there are no previous daylight savings transitions to
+                    // apply, apply standard time.
+                    log.debug( "Wall Time:" + r.time_at[1]  )
+                    offset = this.zone.getUTCOffset() + r.save;
+                    throw("Wall time not supported!");
                     break;
                 case "s":
                     // utc - tz
-                    // standard time is the default, drop through.
+                    // standard time is the default, drop through to default.
                 default:
-                    log.warn("Default Standard Time:" + r.time_at[1] );
-                    var utc = new Date(naive_utc - this.zone.getUTCOffset());
-                    log.info( utc.toUTCString() + " -- " +  this.zone.getAbbreviation().replace("%s", r.letters));
-
+                    log.debug("Default Standard Time:" + r.time_at[1] );
+                    offset = this.zone.getUTCOffset();
             }
+            log.info("Local Time created from wall time to UTC: " + naive_utc.toUTCString() );
+            var utc = new Date(naive_utc.getTime() - offset );
+            dst_abbr = this.zone.getAbbreviation().replace("%s", r.letters);
+            log.info( "UTC by removing tz offset and dst offset - " + offset + ": " + utc.toUTCString() +  " @"
+            + utc.getTime()/1000 + " " + new Date(naive_utc.getTime()+offset).toUTCString().replace("GMT",dst_abbr) );
         }
     }
 }
@@ -717,8 +711,6 @@ tzDate.prototype.getNaiveUTCRuleTime = function getNaiveUTCRuleTime(year, r) {
     var [h,m,s] = def_time;
 
     var utc = new Date(Date.UTC(year, mon, dom, h, m ,s));
-    log.debug( "RULE DATE:" + year + "/" + mon + "/" + dom + " " + h + ":" + m + ":" + s);
-
     switch (cmp) {
         case ">=":
             while (day != utc.getDay() ) {
@@ -734,7 +726,7 @@ tzDate.prototype.getNaiveUTCRuleTime = function getNaiveUTCRuleTime(year, r) {
             // An exact day of the month is expected, test it's coherent.
     }
 
-    log.debug("Rule : " +utc.toString() + " @" + utc.getTime());
+    log.debug("Rule : " + utc.toString() + " @" + utc.getTime() + "[" + [day, cmp, dom] + "]");
     return utc;
 }
 
@@ -880,7 +872,7 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
     var [h,m,s] = def_time;
 
     var utc = new Date(Date.UTC(year, mon, dom, h, m ,s));
-    log.debug( "RULE DATE:" + year + "/" + mon + "/" + dom + " " + h + ":" + m + ":" + s);
+    log.debug( "RULE DATE:" + year + "/" + mon + "/" + dom + " " + h + ":" + m + ":" + s + "[" + [day,cmp,dom] + "]");
 
     switch (cmp) {
         case ">=":
@@ -914,4 +906,10 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
 //~ new Period( {time: ["2","2:56:30"]} );
 //~ new Period( {time: [3,[3,56,30]]} );
 //~ new Period( {time: [4,"5:59:30"]} );
-new tzDate(new Date(2009,2),"Pacific/Auckland");
+
+// Timezone dst transition tests.
+//~ new tzDate(new Date(2009,2),"america/campo_grande");
+new tzDate(new Date(2009,2),"europe/paris");
+//~ new tzDate(new Date(2009,2),"pacific/auckland");
+//~ new tzDate(new Date(2009,2),"america/iqaluit");
+//~ new tzDate(new Date(2009,2),"asia/tehran");
