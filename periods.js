@@ -653,6 +653,12 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
     for ( var rule_def in rules[rule_name] ) {
         var r = rules[rule_name][rule_def];
         for ( var year = r.year_from; year <= r.year_to; year++ ) {
+
+            // Only take into account dates the fall with 2 years either side of the given date.
+            if (year < this._utc.getFullYear()-2 || year > this._utc.getFullYear()+2) {
+                continue;
+            }
+
             // Retruns a UTC time for the rule's transition (ignorant of tz and dst).
             var naive_utc = this.getNaiveUTCRuleTime(year, r);
             var offset = 0;
@@ -663,20 +669,20 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
                     log.debug("UTC Time:" + r.time_at[1] + " " + naive_utc.toUTCString() );
                     offset = 0;
                     break;
-                case "w":
-                    // utc - tz - dst
-                    // In the event there are no previous daylight savings transitions to
-                    // apply, apply standard time.
-                    log.debug( "Wall Time:" + r.time_at[1]  )
-                    offset = this.zone.getUTCOffset() + r.save;
-                    throw("Wall time not supported!");
-                    break;
                 case "s":
                     // utc - tz
                     // standard time is the default, drop through to default.
-                default:
-                    log.debug("Default Standard Time:" + r.time_at[1] );
                     offset = this.zone.getUTCOffset();
+                    break;
+                case "w":
+                    // utc - tz - dst
+                    // In the event there are no previous daylight savings transitions to
+                    // apply, use standard time.
+                    log.debug( "Wall Time:" + r.time_at[1]  )
+                default:
+                    log.debug("Defaulting to Wall Time:" + r.time_at[1] );
+                    offset = this.zone.getUTCOffset() + r.save;
+                    throw("Wall time not supported!");
             }
             log.info("Local Time created from wall time to UTC: " + naive_utc.toUTCString() );
             var utc = new Date(naive_utc.getTime() - offset );
