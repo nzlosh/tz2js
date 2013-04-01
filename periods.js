@@ -670,7 +670,7 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
             var naive_utc = this.getRuleAsNaiveUTC(year, r);
 
             // Stored daylight savings transition date/time as naive utc.  These
-            // will be re-processed take make adjustments for the timezone and dst in effect.
+            // will be re-processed to make adjustments for the timezone and dst in effect.
             normalised_rules.idx.push(naive_utc.getTime());
             normalised_rules[naive_utc.getTime()] = {offset: r.save, letter: r.letters, fmt: r.time_at[1]};
         }
@@ -678,7 +678,8 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
 
     // sort into cronological order.
     normalised_rules.idx.sort();
-    // Pass over the niave utc stamps and apply the appropriate offsets.
+    log.debug("Resulting rule set: " + normalised_rules.idx );
+    // Pass over the naive utc stamps and apply the appropriate offsets.
     for (var i in normalised_rules.idx) {
         log.warn(i+")"+normalised_rules.idx[i]);
         var offset = 0;
@@ -701,15 +702,16 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
                 // fall through to default, as wall time is assumed.
             default:
                 if ( i > 0 ) {
-                    offset = this.zone.getUTCOffset() + normalised_rules.idx[i-1].offset;
+                    offset = this.zone.getUTCOffset() + normalised_rules[normalised_rules.idx[i-1]].offset;
                 } else {
                     offset = this.zone.getUTCOffset()
                 }
         }
-
+        log.info(normalised_rules.idx[i] +"-"+ offset);
         var utc = new Date(normalised_rules.idx[i] - offset );
         dst_abbr = this.zone.getAbbreviation().replace("%s", normalised_rules[normalised_rules.idx[i]].letter);
-        log.info( i+") " + new Date(utc.getTime()).toUTCString().replace("GMT", dst_abbr) );
+        var localtime = new Date(utc.getTime() + offset );
+        log.info( i+") UTC: " + utc.toUTCString() + ", Localtime: " + localtime.toUTCString() + "("+dst_abbr+")" );
     }
 }
 /**********************************************************************
@@ -945,7 +947,7 @@ Rule.prototype.generateDayOn = function generateDayOn(year) {
 
 // Timezone dst transition tests.
 //~ new tzDate(new Date(2013,2),"america/campo_grande");
-//~ new tzDate(new Date(2013,2),"europe/paris");  // utc
-new tzDate(new Date(2013,2),"pacific/auckland"); //standard time. (no dst)
+new tzDate(new Date(2013,3),"europe/paris");  // utc
+//~ new tzDate(new Date(2013,2),"pacific/auckland"); //standard time. (no dst)
 //~ new tzDate(new Date(2013,2),"america/iqaluit");
-//~ new tzDate(new Date(2013,2),"asia/tehran");
+//~ new tzDate(new Date(2013,2),"asia/tehran");  // undefined, default wall clock.
