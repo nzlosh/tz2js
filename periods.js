@@ -99,7 +99,7 @@ Log.prototype.info = function info(msg) {
 
 // Create the logger object immediately so it's available for the function
 // definitions that follow directly below.
-log = new Log(20);
+log = new Log(30);
 
 
 /***********************************************************************
@@ -600,9 +600,10 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
  * @tz: String used to determine the timezone to use.  Undefined defaults to UTC
 */
 function tzDate(dt, tz) {
+    log.debug("******"+dt.toString());
     if ( isDate(dt) ) {
         // Represent time as UTC.
-        this._utc = new Date( Date.UTC( dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), dt.getMinutes()   )  );
+        this._utc = new Date( Date.UTC( dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), dt.getMinutes(), dt.getSeconds()  )  );
     } else {
         this._utc = new Date();
     }
@@ -614,6 +615,12 @@ function tzDate(dt, tz) {
 
         // Match timezone area/location and set its UTC offset and abbreviation.
         this.parseZone(tz);
+
+        // Advance towards the correct UTC timestamp by removing the timezone offset.
+        log.debug("Before Timezone offset: " +[this._utc.getTime(), this.zone.getUTCOffset()])
+        this._utc = new Date( this._utc.getTime() - this.zone.getUTCOffset());
+        log.debug("After Timezone offset: " +[this._utc.getTime(), this.zone.getUTCOffset()])
+
         // Determine the daylight savings time and modification of the zone abbreviation
         this.parseDstRule();
     } else {
@@ -621,7 +628,10 @@ function tzDate(dt, tz) {
         this.dst_off = 0;
         this.zone_dst_abbr = "UTC";
     }
-
+    // Remove the daylight savings offset from UTC.
+    log.debug("Before DST offset: " +[this._utc.getTime(), this.dst_off])
+    this._utc = new Date( this._utc.getTime() - this.dst_off);
+    log.debug("After DST offset: " +[this._utc.getTime(), this.dst_off])
 
 }
 /**********************************************************************/
@@ -635,11 +645,9 @@ tzDate.prototype.parseZone = function parseZone(tz) {
     res = tz.toLowerCase().splitOnFirst("/");
     this.zone = new Zone(zones[res[0]][res[1]][0]);
 }
-
-
+/**********************************************************************/
 tzDate.prototype.DST = function DST() {
-
-
+    throw("tzDate.DST is not Implemented");
     var utc = new Date(normalised_rules.idx[i] - offset );
     dst_abbr = this.zone.getAbbreviation().replace("%s", normalised_rules[normalised_rules.idx[i]].letter);
     var localtime = new Date(utc.getTime() + offset );
@@ -647,15 +655,16 @@ tzDate.prototype.DST = function DST() {
 }
 /**********************************************************************/
 tzDate.prototype.toString = function toString() {
-    // to do : Integrate tz offset, dst offset and abbreviation.
-    return  this._utc.getUTCHours() + ":" +
-            this._utc.getUTCMinutes() + ":" +
-            this._utc.getUTCSeconds() + " " +
-            this._utc.getUTCDate() + "/" +
-            this._utc.getUTCMonth() + "/" +
-            this._utc.getUTCFullYear() + " " +
-            this._utc.getUTCOffset() + " " +
-            this.zone.getAbbreviation();
+    var tz_localtime = new Date(this._utc.getTime() + this.zone.getUTCOffset() + this.dst_off);
+    return  tz_localtime.getUTCHours() + ":" +
+            tz_localtime.getUTCMinutes() + ":" +
+            tz_localtime.getUTCSeconds() + " " +
+            tz_localtime.getUTCDate() + "/" +
+            tz_localtime.getUTCMonth() + "/" +
+            tz_localtime.getUTCFullYear() + " " +
+            (this.zone.getUTCOffset()+this.dst_off)/1000/60/60 + " " +
+            this.zone.getAbbreviation().replace("%s", this.zone_dst_abbr) +
+            "@"+this._utc.getTime();
 }
 /**********************************************************************
  * parseDstRule
@@ -707,11 +716,11 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
             // Stored daylight savings transition date/time as naive utc.  These
             // will be re-processed to make adjustments for the timezone and dst in effect.
             normalised_rules.idx.push(naive_utc.getTime());
-            normalised_rules[naive_utc.getTime()] = {offset: r.save, letter: r.letters, fmt: r.time_at[1]};
+            normalised_rules[naive_utc.getTime()] = {offset: r.save*1000, letter: r.letters, fmt: r.time_at[1]};
         }
     }
 
-    // sort into cronological order.
+    // sort into chronological order.
     normalised_rules.idx.sort();
 
     // Pass 2: Calculate the dayight savings offsets based on the datetime encoding.
@@ -722,7 +731,7 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
             case "u":
             case "g":
             case "z":
-                log.debug("UTC Time:" + normalised_rules[r_timestamp].fmt + " " + naive_utc.toUTCString() );
+                // rule in utc, no offset required.
                 offset = 0;
                 break;
             case "s":
@@ -741,14 +750,12 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
                     offset = this.zone.getUTCOffset()
                 }
         }
+        // Store the dst timestamp with it's offset applied.
         normalised_rules[r_timestamp].datetime = new Date(r_timestamp + offset);
-
-        if ( new Date(this._utc.getTime() + this.zone.getUTCOffset()) < normalised_rules[r_timestamp].datetime ) {
-            log.info("Apply:" +
-            new Date(this._utc.getTime() + this.zone.getUTCOffset()).getUTCString() +
-            " " +
-            normalised_rules[r_timestamp].datetime.getUTCString()
-            );
+        var tmp = new Date(this._utc.getTime() + this.zone.getUTCOffset());
+        if ( tmp > normalised_rules[r_timestamp].datetime ) {
+            this.dst_off = normalised_rules[r_timestamp].offset;
+            this.zone_dst_abbr = normalised_rules[r_timestamp].letter;
         }
     }
 }
@@ -854,7 +861,7 @@ Zone.prototype.getAbbreviation = function getAbbreviation() {
 }
 
 
-new Period({tz:"america/campo_grande"});
+//~ new Period({tz:"america/campo_grande"});
 //~ new Period({tz:"europe/paris"});
 //~ new Period({tz:"pacific/auckland"});
 //~ new Period({tz:"america/iqaluit"});
@@ -869,8 +876,12 @@ new Period({tz:"america/campo_grande"});
 //~ new Period( {time: [4,"5:59:30"]} );
 
 // Timezone dst transition tests.
+
+// #### WARNING!! javascript Date object takes months 0-11, jan=0
 //~ new tzDate(new Date(2013,2),"america/campo_grande");
-new tzDate(new Date(2013,03,31,11,0,0), "europe/paris");  // utc
-//~ new tzDate(new Date(2013,4,7,3,0,0),"pacific/auckland"); //standard time. (no dst)
+var paris = new tzDate(new Date(2013,2,31,2,0,55), "europe/paris");  // utc
+var auckland = new tzDate(new Date(2013,2,31,2,0,55),"pacific/auckland"); //standard time. (no dst) new Date(2013,4,7,3,0,0)
 //~ new tzDate(new Date(2013,2),"america/iqaluit");
 //~ new tzDate(new Date(2013,2),"asia/tehran");  // undefined, default wall clock.
+log.info(paris);
+log.info(auckland);
