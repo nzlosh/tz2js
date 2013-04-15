@@ -49,7 +49,7 @@
 */
 
 
-// Global variables.
+// Global constants.
 days = {"mon":1, "tue":2, "wed":3, "thu":4, "fri":5, "sat":6 ,"sun":0 };
 months = [  {"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
             {"name" : "mar", "maxdays" :31}, {"name" : "apr", "maxdays" :30},
@@ -57,8 +57,6 @@ months = [  {"name" : "jan", "maxdays" :31}, {"name" : "feb", "maxdays" :28},
             {"name" : "jul", "maxdays" :31}, {"name" : "aug", "maxdays" :31},
             {"name" : "sep", "maxdays" :30}, {"name" : "oct", "maxdays" :31},
             {"name" : "nov", "maxdays" :30}, {"name" : "dec", "maxdays" :31}];
-
-execute_policy = true;      // Set the default execution policy in the event no Periods match or are defined.
 
 
 
@@ -204,6 +202,7 @@ function Period(kwargs){
         year:  [2010, 2050],
         tz: "europe/paris"
     };
+    this.period_match = false;
 
     // Merge supplied arguments into default argument set
     var tmp_s = "";
@@ -222,6 +221,7 @@ function Period(kwargs){
     this.parseDay();
     this.parseTime();
     log.debug("Period = " + this.toString());
+    this.checkDate();
 };
 //**********************************************************************
 Period.prototype.toString = function toString() {
@@ -233,11 +233,24 @@ Period.prototype.toString = function toString() {
  * Given a date/time with timezone extensions, determine if it falls within
  * the boundaries of the Period's constraints.
 */
-Period.prototype.checkDate = function checkDate(check_date)
+Period.prototype.checkDate = function checkDate()
 {
-    // normalise timezone of check_date with that of the check_period.
-    // the simplest solution being based on the UTC time.  We'll see...
-    throw "checkDate Unimplemented";
+    // Create a timezone aware date/time from UTC time.
+    var now = new Date();
+    var check_time = new tzDate(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds(), now.getUTCMilliseconds(), this.default_period.tz);
+
+    // compare the date with the period definition working for largest
+    // time unit to smallest.
+
+    log.debug("Check Period using local time as: " + check_time);
+
+    // if the date matches set matched to TRUE
+    this.period_match = true;
+
+}
+Period.prototype.inProgress = function inProgress(){
+    this.checkDate();
+    return this.period_match;
 }
 /**********************************************************************
  * parseExecute
@@ -246,24 +259,23 @@ Period.prototype.checkDate = function checkDate(check_date)
 */
 Period.prototype.parseExecute = function parseExecute() {
     var execute_period = this.default_period["execute"];
-    log.debug('Period.parseExecute: Execute ' + execute_period + " and default policy is " + execute_policy);
+    log.debug('Period.parseExecute: Execute ' + execute_period + " and default policy is " + default_execution_policy);
     if ( execute_period == undefined ) {
-        execute_period = !execute_policy;
+        execute_period = !default_execution_policy;
     }
     this.default_period["execute"] = execute_period;
+}
+Period.prototype.getExecutionPeriod = function getExecutionPeriod() {
+    return this.default_period["execute"]
 }
 /***********************************************************************
  * parseTimeZone
  * =============
+ * Deprecated function.
+ * The timezone is passed to tzDate object.  Nothing to do here.
  */
 Period.prototype.parseTimeZone = function parseTimeZone() {
-    var tmp_tz = this.default_period["tz"];
-
-    log.debug("Period.parseTimeZone: using area/location: " + tmp_tz);
-    /* Nothing to be done here, the value is passed without modification
-     * tzDate during the validation of the period.
-     */
-    // this.default_period["tz"] = new tzDate(0, tmp_tz);
+    log.debug("Period.parseTimeZone: using area/location: " + this.default_period["tz"]);
 }
 /***********************************************************************
  * parseYear
@@ -593,20 +605,23 @@ Period.prototype._validateDayOfMonth = function _validateDayOfMonth(dom) {
 
 /**********************************************************************
  * Test Date object with tz data values.
- * @date: A javascript Date object.  Undefined defaults to current UTC time.
- *        The date object is treated as localtime for timzone and is stored
- *        as UTC datetime.  The timezone/daylight savings transitions are applied
- *        only when converted to human format.
- * @tz: String used to determine the timezone to use.  Undefined defaults to UTC
+ * @Y: Integer : year 4 digit format. Default 1970
+ * @M: Integer : month 1-12. Default: 1
+ * @D: Integer : day of the month 1-31. Default: 1
+ * @h: Integer : hour of the day 0-24. Defualt: 0
+ * @m: Integer : minutes 0-59. Default: 0
+ * @s: Integer : seconds 0-59. Default: 0
+ * @ms: Integer : milliseconds 0-999. Default: 0
+ * @tz: String : timezone to use.  Default: "UTC"
+ * @is_dst: Boolean : used for ambigous times
+ *          across daylight savings transitions. Default: false
 */
-function tzDate(dt, tz) {
-    log.debug("******"+dt.toString());
-    if ( isDate(dt) ) {
-        // Represent time as UTC.
-        this._utc = new Date( Date.UTC( dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), dt.getMinutes(), dt.getSeconds()  )  );
-    } else {
-        this._utc = new Date();
-    }
+function tzDate( Y, M, D, h, m, s, ms, tz, is_dst) {
+    // Argument cases
+    // To do: bound checking "Insufficient arguments supplied to tzDate"
+    // To do: "Too many arguments"
+
+    this.utc_ms = Date.UTC(Y, M, D, h, m, s, ms);
 
     if ( tz != undefined ) {
         this.zone = undefined;
@@ -617,9 +632,7 @@ function tzDate(dt, tz) {
         this.parseZone(tz);
 
         // Advance towards the correct UTC timestamp by removing the timezone offset.
-        log.debug("Before Timezone offset: " +[this._utc.getTime(), this.zone.getUTCOffset()])
-        this._utc = new Date( this._utc.getTime() - this.zone.getUTCOffset());
-        log.debug("After Timezone offset: " +[this._utc.getTime(), this.zone.getUTCOffset()])
+        this.localtime = new Date( this.utc_ms - this.zone.getUTCOffset());
 
         // Determine the daylight savings time and modification of the zone abbreviation
         this.parseDstRule();
@@ -629,9 +642,9 @@ function tzDate(dt, tz) {
         this.zone_dst_abbr = "UTC";
     }
     // Remove the daylight savings offset from UTC.
-    log.debug("Before DST offset: " +[this._utc.getTime(), this.dst_off])
-    this._utc = new Date( this._utc.getTime() - this.dst_off);
-    log.debug("After DST offset: " +[this._utc.getTime(), this.dst_off])
+    log.debug("Before DST offset: " +[this.localtime.getTime(), this.dst_off]);
+    this.walltime = new Date( this.localtime.getTime() - this.dst_off);
+    log.debug("After DST offset: " +[this.walltime.getTime(), this.dst_off]);
 
 }
 /**********************************************************************/
@@ -655,16 +668,15 @@ tzDate.prototype.DST = function DST() {
 }
 /**********************************************************************/
 tzDate.prototype.toString = function toString() {
-    var tz_localtime = new Date(this._utc.getTime() + this.zone.getUTCOffset() + this.dst_off);
-    return  tz_localtime.getUTCHours() + ":" +
-            tz_localtime.getUTCMinutes() + ":" +
-            tz_localtime.getUTCSeconds() + " " +
-            tz_localtime.getUTCDate() + "/" +
-            tz_localtime.getUTCMonth() + "/" +
-            tz_localtime.getUTCFullYear() + " " +
+    return  this.walltime.getUTCHours() + ":" +
+            this.walltime.getUTCMinutes() + ":" +
+            this.walltime.getUTCSeconds() + " " +
+            this.walltime.getUTCDate() + "/" +
+            (this.walltime.getUTCMonth() + 1)+ "/" +
+            this.walltime.getUTCFullYear() + " " +
             (this.zone.getUTCOffset()+this.dst_off)/1000/60/60 + " " +
             this.zone.getAbbreviation().replace("%s", this.zone_dst_abbr) +
-            "@"+this._utc.getTime();
+            "@"+this.utc_ms;
 }
 /**********************************************************************
  * parseDstRule
@@ -706,7 +718,7 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
         for ( var year = r.year_from; year <= r.year_to; year++ ) {
 
             // Skip dates outside a ±2 year range.
-            if (year < this._utc.getFullYear()-2 || year > this._utc.getFullYear()+2) {
+            if (year < this.localtime.getFullYear()-2 || year > this.localtime.getFullYear()+2) {
                 continue;
             }
 
@@ -752,7 +764,7 @@ tzDate.prototype.parseDstRule = function parseDstRule() {
         }
         // Store the dst timestamp with it's offset applied.
         normalised_rules[r_timestamp].datetime = new Date(r_timestamp + offset);
-        var tmp = new Date(this._utc.getTime() + this.zone.getUTCOffset());
+        var tmp = new Date(this.localtime.getTime() + this.zone.getUTCOffset());
         if ( tmp > normalised_rules[r_timestamp].datetime ) {
             this.dst_off = normalised_rules[r_timestamp].offset;
             this.zone_dst_abbr = normalised_rules[r_timestamp].letter;
@@ -860,28 +872,40 @@ Zone.prototype.getAbbreviation = function getAbbreviation() {
     return this.zone_data["zone_format"];
 }
 
+/**********************************************************************
+/* CheckPeriods
+ * ============
+ *
+ * Given a list of periods to test,
+ */
+function CheckPeriods(periods)
+{
+    var execution = default_execution_policy;
+    for ( var period in periods ) {
+        if (periods[period].inProgress()){
+            log.debug("Time inside period matched! Do we execute the script? " + periods[period].getExecutionPeriod() );
+            execution = periods[period].getExecutionPeriod();
+        }
+    }
+    return execution;
+}
 
-//~ new Period({tz:"america/campo_grande"});
-//~ new Period({tz:"europe/paris"});
-//~ new Period({tz:"pacific/auckland"});
-//~ new Period({tz:"america/iqaluit"});
-//~ new Period({tz:"asia/tehran"});
+var default_execution_policy = true;      // Set the default execution policy in the event no Periods match or are defined.
 
-// A series of time tests
-//~ new Zone(zones.pacific.auckland[0]);
+var periods = [];
 
-//~ new Period( {time: [1,"1:57:30"]} );
-//~ new Period( {time: ["2","2:56:30"]} );
-//~ new Period( {time: [3,[3,56,30]]} );
-//~ new Period( {time: [4,"5:59:30"]} );
+periods.push(new Period({time: [1,"1:57:30"],   tz:"america/campo_grande"}));
+periods.push(new Period({time: ["2","2:56:30"], tz:"europe/paris"}));
+periods.push(new Period({time: [3,[3,56,30]],   tz:"pacific/auckland"}));
+periods.push(new Period({time: [4,"5:59:30"],  tz:"america/iqaluit"}));
+periods.push(new Period({tz:"asia/tehran"}));
 
-// Timezone dst transition tests.
 
-// #### WARNING!! javascript Date object takes months 0-11, jan=0
 //~ new tzDate(new Date(2013,2),"america/campo_grande");
-var paris = new tzDate(new Date(2013,2,31,2,0,55), "europe/paris");  // utc
-var auckland = new tzDate(new Date(2013,2,31,2,0,55),"pacific/auckland"); //standard time. (no dst) new Date(2013,4,7,3,0,0)
+
+//~ var auckland = new tzDate(new Date(2013,2,31,2,0,55),"pacific/auckland"); //standard time. (no dst) new Date(2013,4,7,3,0,0)
 //~ new tzDate(new Date(2013,2),"america/iqaluit");
 //~ new tzDate(new Date(2013,2),"asia/tehran");  // undefined, default wall clock.
-log.info(paris);
-log.info(auckland);
+
+//~ log.info(auckland);
+
